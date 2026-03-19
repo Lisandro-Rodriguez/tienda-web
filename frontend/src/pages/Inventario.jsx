@@ -13,6 +13,7 @@ function ModalProducto({ producto, onClose, onSave }) {
   })
   const [loading, setLoading] = useState(false)
   const [buscando, setBuscando] = useState(false)
+  const [mostrarEscaner, setMostrarEscaner] = useState(false)
 
   const precioVenta = form.precio_costo
     ? (parseFloat(form.precio_costo) * (1 + parseFloat(form.margen_ganancia || 0) / 100)).toFixed(2)
@@ -55,13 +56,38 @@ function ModalProducto({ producto, onClose, onSave }) {
                 onChange={e => setForm(f => ({...f, codigo_barras: e.target.value}))}
                 placeholder="Escanear o escribir" disabled={!!producto} required />
               {!producto && (
-                <button type="button" onClick={buscarCodigo} disabled={buscando}
-                  className="btn-secondary px-3 text-sm whitespace-nowrap">
-                  {buscando ? '...' : 'Buscar'}
-                </button>
+                <>
+                  <button type="button" onClick={() => setMostrarEscaner(true)}
+                    className="btn-secondary px-3 flex items-center gap-1">
+                    <Camera size={16} />
+                  </button>
+                  <button type="button" onClick={buscarCodigo} disabled={buscando}
+                    className="btn-secondary px-3 text-sm whitespace-nowrap">
+                    {buscando ? '...' : 'Buscar'}
+                  </button>
+                </>
               )}
             </div>
           </div>
+
+          {mostrarEscaner && (
+            <EscanerCamara
+              onEscaneo={async (codigo) => {
+                setForm(f => ({ ...f, codigo_barras: codigo }))
+                setMostrarEscaner(false)
+                // Buscar en catálogo automáticamente
+                setBuscando(true)
+                try {
+                  const res = await productoService.buscarEnCatalogo(codigo)
+                  setForm(f => ({ ...f, codigo_barras: codigo, nombre: res.data.nombre, marca: res.data.marca, tipo: res.data.tipo }))
+                  toast.success('Datos completados desde catálogo SEPA')
+                } catch {
+                  toast('No encontrado en catálogo, completá manualmente', { icon: 'ℹ️' })
+                } finally { setBuscando(false) }
+              }}
+              onCerrar={() => setMostrarEscaner(false)}
+            />
+          )}
           <div>
             <label className="label">Nombre</label>
             <input className="input" value={form.nombre}
