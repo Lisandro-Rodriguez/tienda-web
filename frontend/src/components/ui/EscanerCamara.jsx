@@ -1,91 +1,134 @@
-import { useEffect, useRef, useState } from 'react'
-import { X, Camera } from 'lucide-react'
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { X, Camera, Focus } from 'lucide-react'
 import { Html5Qrcode } from 'html5-qrcode'
 
 export default function EscanerCamara({ onEscaneo, onCerrar }) {
   const [error, setError] = useState(null)
   const [iniciando, setIniciando] = useState(true)
+  const [refocusing, setRefocusing] = useState(false)
+  const [tapPos, setTapPos] = useState(null)
   const scannerRef = useRef(null)
+  const streamRef = useRef(null)
   const idDiv = 'escaner-camara-div'
 
-  useEffect(() => {
-    let scanner
-
-    const iniciar = async () => {
-      try {
-        scanner = new Html5Qrcode(idDiv)
-        scannerRef.current = scanner
-
-        const camaras = await Html5Qrcode.getCameras()
-        if (!camaras || camaras.length === 0) {
-          setError('No se encontró ninguna cámara.')
-          setIniciando(false)
-          return
-        }
-
-        // Preferir cámara trasera
-        const camara = camaras.find(c =>
-          c.label.toLowerCase().includes('back') ||
-          c.label.toLowerCase().includes('trasera') ||
-          c.label.toLowerCase().includes('rear') ||
-          c.label.toLowerCase().includes('environment')
-        ) || camaras[camaras.length - 1]
-
-        await scanner.start(
-          { deviceId: { exact: camara.id } },
-          {
-            fps: 15,
-            qrbox: { width: 260, height: 160 },
-            aspectRatio: 1.333,
-            // iOS Safari: usar facingMode en lugar de advanced
-            videoConstraints: {
-              deviceId: { exact: camara.id },
-              focusMode: 'continuous',
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            }
-          },
-          (codigo) => {
-            // Vibrar al escanear (si el dispositivo lo soporta)
-            if (navigator.vibrate) navigator.vibrate(50)
-            onEscaneo(codigo)
-            onCerrar()
-          },
-          () => {}
-        )
-        setIniciando(false)
-      } catch (err) {
-        console.error(err)
-        // Fallback: intentar con facingMode environment (cámara trasera genérica)
-        try {
-          if (scanner) {
-            await scanner.start(
-              { facingMode: 'environment' },
-              { fps: 15, qrbox: { width: 260, height: 160 } },
-              (codigo) => {
-                if (navigator.vibrate) navigator.vibrate(50)
-                onEscaneo(codigo)
-                onCerrar()
-              },
-              () => {}
-            )
-            setIniciando(false)
-          }
-        } catch (err2) {
-          setError('No se pudo acceder a la cámara. Verificá los permisos en tu navegador.')
-          setIniciando(false)
-        }
-      }
-    }
-
-    iniciar()
-
-    return () => {
+  const detener = async () => {
+    try {
       if (scannerRef.current?.isScanning) {
-        scannerRef.current.stop().catch(() => {})
+        await scannerRef.current.stop()
       }
+    } catch (e) {}
+  }
+
+  const iniciar = useCallback(async () => {
+    try {
+      // Si ya hay un scanner, detenerlo primero
+      await detener()
+
+      const scanner = new Html5Qrcode(idDiv)
+      scannerRef.current = scanner
+
+      const camaras = await Html5Qrcode.getCameras()
+      if (!camaras || camaras.length === 0) {
+        setError('No se encontró ninguna cámara.')
+        setIniciando(false)
+        return
+      }
+
+      const camara = camaras.find(c =>
+        c.label.toLowerCase().includes('back') ||
+        c.label.toLowerCase().includes('trasera') ||
+        c.label.toLowerCase().includes('rear') ||
+        c.label.toLowerCase().includes('environment')
+      ) || camaras[camaras.length - 1]
+
+      await scanner.start(
+        { facingMode: 'environment' },
+        {
+          fps: 15,
+          qrbox: { width: 260, height: 160 },
+          aspectRatio: 1.5,
+        },
+        (codigo) => {
+          if (navigator.vibrate) navigator.vibrate(60)
+          onEscaneo(codigo)
+          onCerrar()
+        },
+        () => {}
+      )
+
+      // Guardar referencia al stream para control de foco
+      const video = document.querySelector(`#${idDiv} video`)
+      if (video?.srcObject) {
+        streamRef.current = video.srcObject
+      }
+
+      setIniciando(false)
+    } catch (err) {
+      console.error(err)
+      setError('No se pudo acceder a la cámara. Verificá los permisos.')
+      setIniciando(false)
     }
   }, [])
+
+  useEffect(() => {
+    iniciar()
+    return () => { detener() }
+  }, [])
+
+  // Tap to focus: en iOS reinicia brevemente el stream para forzar foco
+  const handleTap = async (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setTapPos({ x, y })
+    setRefocusing(true)
+
+    setTimeout(() => setTapPos(null), 800)
+
+    // Intentar foco nativo via MediaStreamTrack (Android/algunos iPhones)
+    try {
+      const video = document.querySelector(`#${idDiv} video`)
+      const stream = video?.srcObject
+      if (stream) {
+        const track = stream.getVideoTracks()[0]
+        if (track && track.getCapabilities) {
+          const caps = track.getCapabilities()
+          if (caps.focusMode && caps.focusMode.includes('manual')) {
+            await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] })
+          }
+          // pointOfInterest para iOS
+          if (caps.pointOfInterest) {
+            const px = x / rect.width
+            const py = y / rect.height
+            await track.applyConstraints({
+              advanced: [{ pointOfInterest: { x: px, y: py }, focusMode: 'auto' }]
+            })
+          }
+        }
+      }
+    } catch (e) {
+      // fallback: reiniciar scanner para refrescar el foco
+      await detener()
+      setTimeout(async () => {
+        const nuevoScanner = new Html5Qrcode(idDiv)
+        scannerRef.current = nuevoScanner
+        try {
+          await nuevoScanner.start(
+            { facingMode: 'environment' },
+            { fps: 15, qrbox: { width: 260, height: 160 }, aspectRatio: 1.5 },
+            (codigo) => {
+              if (navigator.vibrate) navigator.vibrate(60)
+              onEscaneo(codigo)
+              onCerrar()
+            },
+            () => {}
+          )
+        } catch (e2) {}
+      }, 200)
+    }
+
+    setTimeout(() => setRefocusing(false), 800)
+  }
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -100,8 +143,11 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
         </button>
       </div>
 
-      {/* Área de escaneo */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-black px-4">
+      {/* Área de escaneo con tap to focus */}
+      <div
+        className="flex-1 flex flex-col items-center justify-center bg-black px-4 relative cursor-crosshair"
+        onClick={handleTap}
+      >
         {iniciando && (
           <p className="text-white text-sm mb-6 animate-pulse">Iniciando cámara...</p>
         )}
@@ -118,24 +164,38 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
             </button>
           </div>
         ) : (
-          <div className="w-full max-w-sm">
-            {/* Visor de la cámara */}
+          <div className="w-full max-w-sm relative">
             <div
               id={idDiv}
               className="rounded-2xl overflow-hidden w-full"
               style={{ minHeight: '300px' }}
             />
-            <p className="text-gray-400 text-sm text-center mt-6">
-              Apuntá la cámara al código de barras y mantené estable
-            </p>
-            <p className="text-gray-600 text-xs text-center mt-1">
-              El escáner detecta automáticamente
-            </p>
+
+            {/* Indicador de tap */}
+            {tapPos && (
+              <div
+                className="absolute pointer-events-none"
+                style={{ left: tapPos.x - 30, top: tapPos.y - 30 }}
+              >
+                <div className={`w-14 h-14 border-2 border-yellow-400 rounded-full flex items-center justify-center
+                  transition-all duration-300 ${refocusing ? 'opacity-100 scale-100' : 'opacity-0 scale-50'}`}>
+                  <Focus size={20} className="text-yellow-400" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Instrucción tap */}
+        {!error && !iniciando && (
+          <div className="absolute bottom-24 left-0 right-0 text-center">
+            <p className="text-gray-400 text-sm">Tocá la pantalla para enfocar</p>
+            <p className="text-gray-600 text-xs mt-1">El escáner detecta automáticamente</p>
           </div>
         )}
       </div>
 
-      {/* Footer con botón cerrar */}
+      {/* Footer */}
       <div className="bg-black px-6 py-6">
         <button onClick={onCerrar}
           className="w-full bg-white/10 text-white font-semibold py-3 rounded-xl border border-white/20">
