@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { productoService } from '../services/api'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Edit2, Trash2, AlertTriangle, X } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import EscanerCamara from '../components/ui/EscanerCamara'
 
 function ModalProducto({ producto, onClose, onSave }) {
   const [form, setForm] = useState(producto || {
@@ -121,6 +122,7 @@ export default function Inventario() {
   const [searchParams] = useSearchParams()
   const { usuario } = useAuthStore()
   const isAdmin = usuario?.rol === 'ADMIN'
+  const [mostrarEscaner, setMostrarEscaner] = useState(false)
 
   const cargar = async () => {
     setLoading(true)
@@ -159,6 +161,10 @@ export default function Inventario() {
           <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
           <input className="input pl-9 text-sm" placeholder="Buscar..." value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
+        <button onClick={() => setMostrarEscaner(true)}
+          className="md:hidden btn-secondary px-3 flex items-center gap-1">
+          <Camera size={18} />
+        </button>
         <button onClick={() => setBajoStock(!bajoStock)}
           className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-semibold border transition-colors whitespace-nowrap ${
             bajoStock ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-600'
@@ -166,6 +172,13 @@ export default function Inventario() {
           <AlertTriangle size={15} /><span className="hidden sm:inline">Stock bajo</span>
         </button>
       </div>
+
+      {mostrarEscaner && (
+        <EscanerCamara
+          onEscaneo={(codigo) => setBusqueda(codigo)}
+          onCerrar={() => setMostrarEscaner(false)}
+        />
+      )}
 
       {/* Tabla desktop */}
       <div className="card p-0 overflow-hidden hidden md:block">

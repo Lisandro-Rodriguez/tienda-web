@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { productoService, ventaService, clienteService } from '../services/api'
 import toast from 'react-hot-toast'
-import { ShoppingCart, Plus, Minus, Trash2, CheckCircle, ChevronUp, ChevronDown } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Trash2, CheckCircle, ChevronUp, ChevronDown, Camera } from 'lucide-react'
+import EscanerCamara from '../components/ui/EscanerCamara'
 
 const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado']
 
@@ -14,6 +15,7 @@ export default function Ventas() {
   const [pagaCon, setPagaCon] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [mostrarResumen, setMostrarResumen] = useState(false)
+  const [mostrarEscaner, setMostrarEscaner] = useState(false)
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -88,8 +90,25 @@ export default function Ventas() {
           <input ref={inputRef} value={codigo} onChange={e => setCodigo(e.target.value)}
             className="input flex-1 text-base" placeholder="Código de barras o nombre..."
             autoComplete="off" />
+          <button type="button" onClick={() => setMostrarEscaner(true)}
+            className="md:hidden btn-secondary px-3 flex items-center gap-1">
+            <Camera size={18} />
+          </button>
           <button type="submit" className="btn-primary px-4">+</button>
         </form>
+
+        {mostrarEscaner && (
+          <EscanerCamara
+            onEscaneo={(codigo) => {
+              setCodigo(codigo)
+              // Buscar automáticamente al escanear
+              setTimeout(() => {
+                document.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+              }, 100)
+            }}
+            onCerrar={() => setMostrarEscaner(false)}
+          />
+        )}
 
         {/* Carrito */}
         {carrito.length === 0 ? (
