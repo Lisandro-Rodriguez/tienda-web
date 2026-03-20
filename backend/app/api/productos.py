@@ -87,14 +87,14 @@ def crear_producto(
     if existe:
         raise HTTPException(status_code=400, detail="Código de barras ya existe")
 
-    # Nombre duplicado
-    nombre_dup = db.query(Producto).filter(
-        Producto.nombre.ilike(data.nombre.strip()),
+    # Nombre duplicado — busca coincidencia exacta ignorando mayusculas y espacios extra
+    nombre_limpio = data.nombre.strip()
+    todos = db.query(Producto).filter(
         Producto.negocio_id == usuario.negocio_id,
         Producto.activo == True
-    ).first()
-    if nombre_dup:
-        raise HTTPException(status_code=400, detail=f"Ya existe un producto con el nombre '{data.nombre}'")
+    ).all()
+    if any(p.nombre.strip().lower() == nombre_limpio.lower() for p in todos):
+        raise HTTPException(status_code=400, detail=f"Ya existe un producto con el nombre '{nombre_limpio}'")
 
     precio_venta = round(data.precio_costo * (1 + data.margen_ganancia / 100), 2)
     producto = Producto(
