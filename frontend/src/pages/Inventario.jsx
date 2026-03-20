@@ -386,7 +386,7 @@ export default function Inventario() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              {['Codigo', 'Nombre', 'Tipo', 'Marca', 'Costo', 'Venta', 'Stock', ''].map(h => (
+              {(isAdmin ? ['Codigo', 'Nombre', 'Tipo', 'Marca', 'Costo', 'Venta', 'Stock', ''] : ['Codigo', 'Nombre', 'Tipo', 'Marca', 'Venta', 'Stock']).map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
@@ -402,7 +402,7 @@ export default function Inventario() {
                 <td className="px-4 py-3 font-semibold text-gray-800">{p.nombre}</td>
                 <td className="px-4 py-3 text-gray-500">{p.tipo}</td>
                 <td className="px-4 py-3 text-gray-500">{p.marca}</td>
-                <td className="px-4 py-3 text-gray-700">${p.precio_costo.toFixed(2)}</td>
+                {isAdmin && <td className="px-4 py-3 text-gray-700">${p.precio_costo.toFixed(2)}</td>}
                 <td className="px-4 py-3 font-semibold text-green-700">${p.precio_venta.toFixed(2)}</td>
                 <td className="px-4 py-3">
                   <span className={`font-bold ${p.stock <= 5 ? 'text-red-600' : 'text-gray-800'}`}>{p.stock}</span>
@@ -438,7 +438,7 @@ export default function Inventario() {
               </div>
               <div className="text-right ml-3 flex-shrink-0">
                 <p className="font-bold text-green-700">${p.precio_venta.toFixed(2)}</p>
-                <p className="text-xs text-gray-400">costo: ${p.precio_costo.toFixed(2)}</p>
+                {isAdmin && <p className="text-xs text-gray-400">costo: ${p.precio_costo.toFixed(2)}</p>}
                 <p className={`text-xs font-bold mt-0.5 ${p.stock <= 5 ? 'text-red-600' : 'text-gray-600'}`}>
                   Stock: {p.stock} {p.stock <= 5 && '⚠️'}
                 </p>

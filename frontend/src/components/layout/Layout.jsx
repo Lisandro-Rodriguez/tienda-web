@@ -8,7 +8,7 @@ import {
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',  always: true },
+  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',  adminOnly: true },
   { to: '/ventas',        icon: ShoppingCart,    label: 'Caja',       always: true },
   { to: '/inventario',    icon: Package,         label: 'Inventario', always: true },
   { to: '/clientes',      icon: Users,           label: 'Fiado',      always: true },
