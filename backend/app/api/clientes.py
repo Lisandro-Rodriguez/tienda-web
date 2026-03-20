@@ -1,11 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
 from app.core.database import get_db
-from app.core.security import get_usuario_actual
+from app.core.security import get_usuario_actual, require_admin
 from app.models.models import Cliente, MovimientoCliente
 from app.schemas.schemas import ClienteCreate, ClienteOut, MovimientoCreate, MovimientoOut
 
 router = APIRouter(prefix="/api/clientes", tags=["clientes"])
+
+class ClienteUpdate(BaseModel):
+    nombre: str
+    telefono: Optional[str] = ""
 
 @router.get("/", response_model=list[ClienteOut])
 def listar_clientes(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):
@@ -15,13 +21,48 @@ def listar_clientes(usuario=Depends(get_usuario_actual), db: Session = Depends(g
     ).order_by(Cliente.nombre).all()
 
 @router.post("/", response_model=ClienteOut)
-def crear_cliente(
-    data: ClienteCreate,
-    usuario=Depends(get_usuario_actual),
-    db: Session = Depends(get_db)
-):
+def crear_cliente(data: ClienteCreate, usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):
+    # Verificar nombre duplicado
+    existe = db.query(Cliente).filter(
+        Cliente.negocio_id == usuario.negocio_id,
+        Cliente.activo == True
+    ).all()
+    if any(c.nombre.strip().lower() == data.nombre.strip().lower() for c in existe):
+        raise HTTPException(status_code=400, detail="Ya existe un cliente con ese nombre")
+    if data.telefono and any(c.telefono == data.telefono for c in existe):
+        raise HTTPException(status_code=400, detail="Ya existe un cliente con ese teléfono")
+
     cliente = Cliente(negocio_id=usuario.negocio_id, **data.model_dump())
     db.add(cliente)
+    db.commit()
+    db.refresh(cliente)
+    return cliente
+
+@router.put("/{cliente_id}", response_model=ClienteOut)
+def actualizar_cliente(
+    cliente_id: int,
+    data: ClienteUpdate,
+    usuario=Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    cliente = db.query(Cliente).filter(
+        Cliente.id == cliente_id,
+        Cliente.negocio_id == usuario.negocio_id
+    ).first()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    # Verificar nombre duplicado (excluyendo el actual)
+    otros = db.query(Cliente).filter(
+        Cliente.negocio_id == usuario.negocio_id,
+        Cliente.activo == True,
+        Cliente.id != cliente_id
+    ).all()
+    if any(c.nombre.strip().lower() == data.nombre.strip().lower() for c in otros):
+        raise HTTPException(status_code=400, detail="Ya existe un cliente con ese nombre")
+
+    cliente.nombre = data.nombre.strip()
+    cliente.telefono = data.telefono.strip() if data.telefono else ""
     db.commit()
     db.refresh(cliente)
     return cliente
@@ -52,6 +93,9 @@ def registrar_movimiento(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
+    if data.tipo == "ABONO" and data.monto > cliente.deuda_total:
+        raise HTTPException(status_code=400, detail="El monto supera la deuda del cliente")
+
     mov = MovimientoCliente(cliente_id=cliente_id, **data.model_dump())
     db.add(mov)
 
@@ -67,7 +111,7 @@ def registrar_movimiento(
 @router.delete("/{cliente_id}")
 def eliminar_cliente(
     cliente_id: int,
-    usuario=Depends(get_usuario_actual),
+    usuario=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
     cliente = db.query(Cliente).filter(
