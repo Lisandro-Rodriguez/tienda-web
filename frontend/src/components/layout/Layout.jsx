@@ -8,7 +8,7 @@ import {
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { to: '/',              icon: LayoutDashboard, label: 'Dashboard',  adminOnly: true },
+  { to: '/dashboard',     icon: LayoutDashboard, label: 'Dashboard',  adminOnly: true },
   { to: '/ventas',        icon: ShoppingCart,    label: 'Caja',       always: true },
   { to: '/inventario',    icon: Package,         label: 'Inventario', always: true },
   { to: '/clientes',      icon: Users,           label: 'Fiado',      always: true },
@@ -43,7 +43,7 @@ export default function Layout() {
         </div>
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {itemsVisibles.map(item => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'}
+            <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'}
               className={({ isActive }) => clsx(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150',
                 isActive ? 'bg-blue-500 text-white shadow-md' : 'text-blue-100 hover:bg-white/10'
@@ -84,7 +84,7 @@ export default function Layout() {
         {menuAbierto && (
           <div className="md:hidden bg-[#1e3a5f] px-3 pb-3 space-y-1 flex-shrink-0 shadow-lg z-50">
             {itemsVisibles.map(item => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'}
+              <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'}
                 onClick={() => setMenuAbierto(false)}
                 className={({ isActive }) => clsx(
                   'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold transition-all',
@@ -109,7 +109,7 @@ export default function Layout() {
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
           <div className="flex">
             {itemsVisibles.slice(0, 5).map(item => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'}
+              <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'}
                 className={({ isActive }) => clsx(
                   'flex-1 flex flex-col items-center justify-center py-2 transition-colors',
                   isActive ? 'text-blue-600' : 'text-gray-400'

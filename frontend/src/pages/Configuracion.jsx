@@ -86,7 +86,7 @@ export default function Configuracion() {
         <form onSubmit={guardar} className="space-y-4">
           {campo('Nombre del negocio', 'nombre', 'Ej: Kiosco La Esquina')}
           {campo('Direccion', 'direccion', 'Ej: Av. San Martin 123')}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {campo('CUIT', 'cuit', '20-12345678-9')}
             {campo('Telefono', 'telefono', '387-1234567')}
           </div>
@@ -156,7 +156,7 @@ export default function Configuracion() {
         <div className="border-t pt-4">
           <p className="text-sm font-bold text-gray-600 mb-3">Agregar nuevo usuario</p>
           <form onSubmit={crearUsuario} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="label text-xs">Nombre de usuario</label>
                 <input className="input text-sm" value={nuevoUsuario.username}

@@ -14,8 +14,15 @@ import Configuracion from './pages/Configuracion'
 function ProtectedRoute({ children, adminOnly = false }) {
   const { token, usuario } = useAuthStore()
   if (!token) return <Navigate to="/login" replace />
-  if (adminOnly && usuario?.rol !== 'ADMIN') return <Navigate to="/" replace />
+  if (adminOnly && usuario?.rol !== 'ADMIN') return <Navigate to="/ventas" replace />
   return children
+}
+
+function IndexRoute() {
+  const { usuario } = useAuthStore()
+  return usuario?.rol === 'ADMIN'
+    ? <Dashboard />
+    : <Navigate to="/ventas" replace />
 }
 
 export default function App() {
@@ -28,10 +35,9 @@ export default function App() {
         <Route path="/" element={
           <ProtectedRoute><Layout /></ProtectedRoute>
         }>
-          <Route index element={
-            <ProtectedRoute>
-              {useAuthStore.getState().usuario?.rol === 'ADMIN' ? <Dashboard /> : <Navigate to="/ventas" replace />}
-            </ProtectedRoute>
+          <Route index element={<IndexRoute />} />
+          <Route path="dashboard" element={
+            <ProtectedRoute adminOnly><Dashboard /></ProtectedRoute>
           } />
           <Route path="inventario" element={<Inventario />} />
           <Route path="ventas" element={<Ventas />} />
