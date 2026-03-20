@@ -48,12 +48,12 @@ def buscar_por_codigo(
 
 @router.get("/catalogo/{codigo}")
 def buscar_en_catalogo(codigo: str, db: Session = Depends(get_db)):
-    """Busca en el catálogo SEPA para autocompletar."""
+    """Busca en el catálogo SEPA para autocompletar. Redirige al router de catálogo."""
+    from app.models.models import CatalogoSEPA
     item = db.query(CatalogoSEPA).filter(CatalogoSEPA.codigo == codigo).first()
     if not item:
         raise HTTPException(status_code=404, detail="No encontrado en catálogo")
-    return {"nombre": item.nombre, "marca": item.marca, "tipo": item.tipo,
-            "precio_ref": item.precio_ref}
+    return {"nombre": item.nombre, "marca": item.marca, "tipo": item.tipo, "precio_ref": item.precio_ref}
 
 @router.get("/tipos")
 def listar_tipos(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):

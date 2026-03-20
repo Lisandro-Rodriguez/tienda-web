@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: '/api',
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -68,4 +68,18 @@ export const clienteService = {
   movimientos: (id) => api.get(`/clientes/${id}/movimientos`),
   registrarMovimiento: (id, data) => api.post(`/clientes/${id}/movimientos`, data),
   eliminar: (id) => api.delete(`/clientes/${id}`),
+}
+
+export const catalogoService = {
+  buscar: (codigo) => api.get(`/catalogo/buscar/${codigo}`),
+  stats: () => api.get('/catalogo/stats'),
+  importar: (archivo) => {
+    const form = new FormData()
+    form.append('archivo', archivo)
+    return api.post('/catalogo/importar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000 // 5 minutos — el archivo es grande
+    })
+  },
+  limpiar: () => api.delete('/catalogo/limpiar'),
 }

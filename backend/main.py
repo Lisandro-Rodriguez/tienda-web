@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.api import auth, negocios, productos, ventas, clientes
+from app.api import auth, negocios, productos, ventas, clientes, catalogo
 
 # Crear todas las tablas al arrancar
 Base.metadata.create_all(bind=engine)
@@ -12,10 +12,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS — permite que el frontend React se comunique con el backend
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción cambiar por el dominio real
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -27,6 +27,7 @@ app.include_router(negocios.router)
 app.include_router(productos.router)
 app.include_router(ventas.router)
 app.include_router(clientes.router)
+app.include_router(catalogo.router)
 
 @app.get("/")
 def root():
