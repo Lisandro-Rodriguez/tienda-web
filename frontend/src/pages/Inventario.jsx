@@ -99,6 +99,20 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    // Validaciones del frontend
+    if (!form.nombre.trim()) { toast.error('El nombre es obligatorio'); return }
+    if (!form.codigo_barras.trim()) { toast.error('El codigo de barras es obligatorio'); return }
+    const costo = parseFloat(form.precio_costo)
+    if (!costo || costo <= 0) { toast.error('El costo debe ser mayor a 0'); return }
+    const margen = parseFloat(form.margen_ganancia)
+    if (margen < 0) { toast.error('El margen no puede ser negativo'); return }
+    const stock = parseInt(form.stock)
+    if (stock < 0) { toast.error('El stock no puede ser negativo'); return }
+    if (form.stock_minimo !== '' && parseInt(form.stock_minimo) < 0) {
+      toast.error('El stock minimo no puede ser negativo'); return
+    }
+
     setLoading(true)
     try {
       if (producto) { await productoService.actualizar(producto.id, form); toast.success('Producto actualizado') }
@@ -194,17 +208,17 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
               <label className="label">Costo ($)</label>
               <input className="input" type="number" step="0.01" value={form.precio_costo}
                 onChange={e => setForm(f => ({...f, precio_costo: e.target.value}))}
-                placeholder="0.00" required />
+                placeholder="0.00" required min="0.01" step="0.01" />
             </div>
             <div>
               <label className="label">Margen (%)</label>
               <input className="input" type="number" value={form.margen_ganancia}
-                onChange={e => setForm(f => ({...f, margen_ganancia: e.target.value}))} />
+                onChange={e => setForm(f => ({...f, margen_ganancia: e.target.value}))} min="0" max="10000" />
             </div>
             <div>
               <label className="label">Stock</label>
               <input className="input" type="number" value={form.stock}
-                onChange={e => setForm(f => ({...f, stock: e.target.value}))} />
+                onChange={e => setForm(f => ({...f, stock: e.target.value}))} min="0" />
             </div>
           </div>
 
@@ -213,7 +227,7 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             <label className="label">Stock minimo (alerta)</label>
             <input className="input" type="number" value={form.stock_minimo}
               onChange={e => setForm(f => ({...f, stock_minimo: e.target.value}))}
-              placeholder="Dejar vacio para usar el umbral global" />
+              placeholder="Dejar vacio para usar el umbral global" min="0" />
             <p className="text-xs text-gray-400 mt-1">Si se deja vacio, se usa la configuracion global del inventario</p>
           </div>
 

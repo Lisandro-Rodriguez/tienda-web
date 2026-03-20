@@ -70,6 +70,15 @@ def crear_producto(
     usuario=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
+    # Validaciones
+    if data.precio_costo <= 0:
+        raise HTTPException(status_code=400, detail="El precio de costo debe ser mayor a 0")
+    if data.margen_ganancia < 0:
+        raise HTTPException(status_code=400, detail="El margen no puede ser negativo")
+    if data.stock < 0:
+        raise HTTPException(status_code=400, detail="El stock no puede ser negativo")
+
+    # Codigo de barras duplicado
     existe = db.query(Producto).filter(
         Producto.codigo_barras == data.codigo_barras,
         Producto.negocio_id == usuario.negocio_id,
@@ -77,6 +86,15 @@ def crear_producto(
     ).first()
     if existe:
         raise HTTPException(status_code=400, detail="Código de barras ya existe")
+
+    # Nombre duplicado
+    nombre_dup = db.query(Producto).filter(
+        Producto.nombre.ilike(data.nombre.strip()),
+        Producto.negocio_id == usuario.negocio_id,
+        Producto.activo == True
+    ).first()
+    if nombre_dup:
+        raise HTTPException(status_code=400, detail=f"Ya existe un producto con el nombre '{data.nombre}'")
 
     precio_venta = round(data.precio_costo * (1 + data.margen_ganancia / 100), 2)
     producto = Producto(

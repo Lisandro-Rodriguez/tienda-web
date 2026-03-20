@@ -18,8 +18,17 @@ export default function Clientes() {
 
   const crearCliente = async (e) => {
     e.preventDefault()
+    if (!nuevoNombre.trim()) { toast.error('El nombre es obligatorio'); return }
+    // Verificar duplicados localmente
+    const nombreLower = nuevoNombre.trim().toLowerCase()
+    const duplicadoNombre = clientes.find(c => c.nombre.toLowerCase() === nombreLower)
+    if (duplicadoNombre) { toast.error('Ya existe un cliente con ese nombre'); return }
+    if (nuevoTel.trim()) {
+      const duplicadoTel = clientes.find(c => c.telefono === nuevoTel.trim())
+      if (duplicadoTel) { toast.error('Ya existe un cliente con ese teléfono'); return }
+    }
     try {
-      await clienteService.crear({ nombre: nuevoNombre, telefono: nuevoTel })
+      await clienteService.crear({ nombre: nuevoNombre.trim(), telefono: nuevoTel.trim() })
       toast.success('Cliente registrado')
       setNuevoNombre(''); setNuevoTel(''); setShowForm(false)
       cargar()
@@ -34,7 +43,9 @@ export default function Clientes() {
   }
 
   const registrarAbono = async () => {
-    if (!montoAbono || parseFloat(montoAbono) <= 0) { toast.error('Monto inválido'); return }
+    const monto = parseFloat(montoAbono)
+    if (!montoAbono || monto <= 0) { toast.error('El monto debe ser mayor a 0'); return }
+    if (monto > modalAbono.deuda_total) { toast.error(`El monto no puede superar la deuda ($${modalAbono.deuda_total.toFixed(2)})`); return }
     try {
       await clienteService.registrarMovimiento(modalAbono.id, {
         tipo: 'ABONO', monto: parseFloat(montoAbono),
@@ -143,8 +154,10 @@ export default function Clientes() {
             <p className="text-sm text-gray-600 mb-1">Cliente: <strong>{modalAbono.nombre}</strong></p>
             <p className="text-sm text-red-600 mb-4">Deuda actual: <strong>${modalAbono.deuda_total.toFixed(2)}</strong></p>
             <label className="label">Monto a abonar ($)</label>
-            <input type="number" step="0.01" className="input mb-4"
-              value={montoAbono} onChange={e => setMontoAbono(e.target.value)}
+            <input type="number" step="0.01" className="input mb-4" min="0.01"
+              value={montoAbono}
+              onChange={e => { if (e.target.value === '' || parseFloat(e.target.value) >= 0) setMontoAbono(e.target.value) }}
+              onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
               placeholder="0.00" autoFocus />
             <div className="flex gap-3">
               <button onClick={() => setModalAbono(null)} className="btn-secondary flex-1">Cancelar</button>

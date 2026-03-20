@@ -205,8 +205,14 @@ export default function Ventas() {
         {metodo === 'Efectivo' && (
           <div>
             <label className="label text-sm">Paga con ($)</label>
-            <input type="number" step="0.01" className="input"
-              value={pagaCon} onChange={e => setPagaCon(e.target.value)} placeholder="0.00" />
+            <input type="number" step="0.01" className="input" min="0"
+              value={pagaCon}
+              onChange={e => {
+                const val = e.target.value
+                if (val === '' || parseFloat(val) >= 0) setPagaCon(val)
+              }}
+              onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
+              placeholder="0.00" />
             {pagaCon && (
               parseFloat(pagaCon) >= total
                 ? <p className="text-green-600 font-bold text-sm mt-1">✓ Vuelto: ${vuelto.toFixed(2)}</p>
