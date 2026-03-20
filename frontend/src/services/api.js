@@ -83,3 +83,9 @@ export const catalogoService = {
   },
   limpiar: () => api.delete('/catalogo/limpiar'),
 }
+
+export const stockService = {
+  listarUmbrales: () => api.get('/stock/umbrales'),
+  guardarUmbral: (data) => api.post('/stock/umbrales', data),
+  eliminarUmbral: (id) => api.delete(`/stock/umbrales/${id}`),
+}

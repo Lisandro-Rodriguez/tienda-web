@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.api import auth, negocios, productos, ventas, clientes, catalogo
+from app.api import auth, negocios, productos, ventas, clientes, catalogo, stock
 
-# Crear todas las tablas al arrancar
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
@@ -12,7 +11,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -21,13 +19,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routers
 app.include_router(auth.router)
 app.include_router(negocios.router)
 app.include_router(productos.router)
 app.include_router(ventas.router)
 app.include_router(clientes.router)
 app.include_router(catalogo.router)
+app.include_router(stock.router)
 
 @app.get("/")
 def root():

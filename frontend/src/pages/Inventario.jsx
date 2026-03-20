@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { productoService } from '../services/api'
+import { productoService, stockService } from '../services/api'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera } from 'lucide-react'
@@ -73,11 +73,14 @@ function AutocompleteInput({ value, onChange, opciones, placeholder }) {
 function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExistentes }) {
   const [form, setForm] = useState(producto || {
     codigo_barras: '', nombre: '', tipo: '', marca: '',
-    precio_costo: '', margen_ganancia: 30, stock: 0
+    precio_costo: '', margen_ganancia: 30, stock: 0, stock_minimo: ''
   })
   const [loading, setLoading] = useState(false)
   const [buscando, setBuscando] = useState(false)
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
+  const [mostrarAjustes, setMostrarAjustes] = useState(false)
+  const [umbrales, setUmbrales] = useState([])
+  const [nuevoUmbral, setNuevoUmbral] = useState({ tipo: 'global', referencia: '', umbral: 5 })
 
   const precioVenta = form.precio_costo
     ? (parseFloat(form.precio_costo) * (1 + parseFloat(form.margen_ganancia || 0) / 100)).toFixed(2)
@@ -205,6 +208,15 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             </div>
           </div>
 
+          {/* Stock mínimo */}
+          <div>
+            <label className="label">Stock minimo (alerta)</label>
+            <input className="input" type="number" value={form.stock_minimo}
+              onChange={e => setForm(f => ({...f, stock_minimo: e.target.value}))}
+              placeholder="Dejar vacio para usar el umbral global" />
+            <p className="text-xs text-gray-400 mt-1">Si se deja vacio, se usa la configuracion global del inventario</p>
+          </div>
+
           {/* Precio calculado */}
           <div className="bg-blue-50 rounded-lg px-4 py-2 text-sm">
             <span className="text-gray-600">Precio de venta: </span>
@@ -236,6 +248,9 @@ export default function Inventario() {
   const { usuario } = useAuthStore()
   const isAdmin = usuario?.rol === 'ADMIN'
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
+  const [mostrarAjustes, setMostrarAjustes] = useState(false)
+  const [umbrales, setUmbrales] = useState([])
+  const [nuevoUmbral, setNuevoUmbral] = useState({ tipo: 'global', referencia: '', umbral: 5 })
 
   const cargar = async () => {
     setLoading(true)
@@ -252,7 +267,34 @@ export default function Inventario() {
     finally { setLoading(false) }
   }
 
-  useEffect(() => { if (searchParams.get('bajo_stock')) setBajoStock(true) }, [])
+  const cargarUmbrales = async () => {
+    try {
+      const res = await stockService.listarUmbrales()
+      setUmbrales(res.data)
+    } catch {}
+  }
+
+  const guardarUmbral = async () => {
+    if (!nuevoUmbral.umbral) { toast.error('Ingresa un valor'); return }
+    try {
+      await stockService.guardarUmbral(nuevoUmbral)
+      toast.success('Umbral guardado')
+      cargarUmbrales()
+      setNuevoUmbral({ tipo: 'global', referencia: '', umbral: 5 })
+    } catch { toast.error('Error al guardar') }
+  }
+
+  const eliminarUmbral = async (id) => {
+    try {
+      await stockService.eliminarUmbral(id)
+      cargarUmbrales()
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (searchParams.get('bajo_stock')) setBajoStock(true)
+    cargarUmbrales()
+  }, [])
   useEffect(() => { cargar() }, [busqueda, bajoStock])
 
   const eliminar = async (id) => {
@@ -269,11 +311,19 @@ export default function Inventario() {
           <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Inventario</h1>
           <p className="text-sm text-gray-500">{productos.length} productos</p>
         </div>
-        {isAdmin && (
-          <button onClick={() => setModal('nuevo')} className="btn-primary flex items-center gap-2 text-sm md:text-base px-3 md:px-4">
-            <Plus size={18} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span>
-          </button>
-        )}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <button onClick={() => setMostrarAjustes(true)}
+              className="btn-secondary flex items-center gap-2 text-sm px-3">
+              ⚙️ <span className="hidden sm:inline">Stock</span>
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={() => setModal('nuevo')} className="btn-primary flex items-center gap-2 text-sm md:text-base px-3 md:px-4">
+              <Plus size={18} /> <span className="hidden sm:inline">Nuevo producto</span><span className="sm:hidden">Nuevo</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -377,6 +427,102 @@ export default function Inventario() {
           </div>
         ))}
       </div>
+
+      {/* Panel ajustes de stock */}
+      {mostrarAjustes && (
+        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50 p-0 md:p-4">
+          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white">
+              <h2 className="font-bold text-lg">⚙️ Configuracion de Stock Bajo</h2>
+              <button onClick={() => setMostrarAjustes(false)}><X size={20} className="text-gray-400" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+
+              {/* Umbrales existentes */}
+              {umbrales.length > 0 && (
+                <div>
+                  <p className="label mb-2">Umbrales configurados</p>
+                  <div className="space-y-2">
+                    {umbrales.map(u => (
+                      <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2">
+                        <div>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full mr-2 ${
+                            u.tipo === 'global' ? 'bg-blue-100 text-blue-700' :
+                            u.tipo === 'tipo' ? 'bg-purple-100 text-purple-700' :
+                            u.tipo === 'marca' ? 'bg-orange-100 text-orange-700' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>{u.tipo}</span>
+                          <span className="text-sm text-gray-600">{u.referencia || 'Todos los productos'}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-red-600">≤ {u.umbral}</span>
+                          <button onClick={() => eliminarUmbral(u.id)} className="text-gray-400 hover:text-red-500">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Agregar nuevo umbral */}
+              <div className="border-t pt-4">
+                <p className="label mb-3">Agregar umbral</p>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="label text-xs">Aplicar a</label>
+                    <select className="input text-sm" value={nuevoUmbral.tipo}
+                      onChange={e => setNuevoUmbral(u => ({...u, tipo: e.target.value, referencia: ''}))}>
+                      <option value="global">Todos los productos</option>
+                      <option value="tipo">Por tipo/categoria</option>
+                      <option value="marca">Por marca</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label text-xs">Cantidad minima</label>
+                    <input type="number" className="input text-sm" value={nuevoUmbral.umbral}
+                      onChange={e => setNuevoUmbral(u => ({...u, umbral: parseInt(e.target.value) || 0}))}
+                      min="0" />
+                  </div>
+                </div>
+
+                {nuevoUmbral.tipo === 'tipo' && (
+                  <div className="mb-3">
+                    <label className="label text-xs">Tipo / Categoria</label>
+                    <AutocompleteInput
+                      value={nuevoUmbral.referencia}
+                      onChange={val => setNuevoUmbral(u => ({...u, referencia: val}))}
+                      opciones={tiposExistentes}
+                      placeholder="Ej: Bebida"
+                    />
+                  </div>
+                )}
+
+                {nuevoUmbral.tipo === 'marca' && (
+                  <div className="mb-3">
+                    <label className="label text-xs">Marca</label>
+                    <AutocompleteInput
+                      value={nuevoUmbral.referencia}
+                      onChange={val => setNuevoUmbral(u => ({...u, referencia: val}))}
+                      opciones={marcasExistentes}
+                      placeholder="Ej: Coca-Cola"
+                    />
+                  </div>
+                )}
+
+                <div className="bg-blue-50 rounded-lg p-3 text-xs text-blue-700 mb-3">
+                  <strong>Prioridad:</strong> Producto individual &gt; Por tipo &gt; Por marca &gt; Global
+                </div>
+
+                <button onClick={guardarUmbral} className="btn-primary w-full">
+                  Guardar umbral
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal && (
         <ModalProducto
