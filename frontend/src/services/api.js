@@ -65,6 +65,7 @@ export const ventaService = {
 export const clienteService = {
   listar: () => api.get('/clientes/'),
   crear: (data) => api.post('/clientes/', data),
+  actualizar: (id, data) => api.put(`/clientes/${id}`, data),
   movimientos: (id) => api.get(`/clientes/${id}/movimientos`),
   registrarMovimiento: (id, data) => api.post(`/clientes/${id}/movimientos`, data),
   eliminar: (id) => api.delete(`/clientes/${id}`),
