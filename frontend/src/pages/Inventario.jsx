@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { productoService } from '../services/api'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -6,7 +6,73 @@ import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera } from 'lucide-re
 import { useAuthStore } from '../store/authStore'
 import EscanerCamara from '../components/ui/EscanerCamara'
 
-function ModalProducto({ producto, onClose, onSave }) {
+// ── Componente AutocompleteInput ──────────────────────────────────────────────
+function AutocompleteInput({ value, onChange, opciones, placeholder, className }) {
+  const [abierto, setAbierto] = useState(false)
+  const [filtradas, setFiltradas] = useState([])
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setAbierto(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleChange = (val) => {
+    onChange(val)
+    const f = opciones.filter(o =>
+      o.toLowerCase().includes(val.toLowerCase()) &&
+      o.toLowerCase() !== val.toLowerCase()
+    )
+    setFiltradas(f)
+    setAbierto(f.length > 0 && val.length > 0)
+  }
+
+  const handleFocus = () => {
+    const f = value
+      ? opciones.filter(o => o.toLowerCase().includes(value.toLowerCase()))
+      : opciones
+    setFiltradas(f)
+    setAbierto(f.length > 0)
+  }
+
+  const seleccionar = (opcion) => {
+    onChange(opcion)
+    setAbierto(false)
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        className={className || 'input'}
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={handleFocus}
+        placeholder={placeholder}
+        autoComplete="off"
+      />
+      {abierto && filtradas.length > 0 && (
+        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+          {filtradas.map((op, i) => (
+            <button
+              key={i}
+              type="button"
+              onMouseDown={() => seleccionar(op)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
+            >
+              {op}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Modal de producto ─────────────────────────────────────────────────────────
+function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExistentes }) {
   const [form, setForm] = useState(producto || {
     codigo_barras: '', nombre: '', tipo: '', marca: '',
     precio_costo: '', margen_ganancia: 30, stock: 0
@@ -25,8 +91,8 @@ function ModalProducto({ producto, onClose, onSave }) {
     try {
       const res = await productoService.buscarEnCatalogo(form.codigo_barras)
       setForm(f => ({ ...f, nombre: res.data.nombre, marca: res.data.marca, tipo: res.data.tipo }))
-      toast.success('Datos completados desde catálogo SEPA')
-    } catch { toast('No encontrado en catálogo, completá manualmente', { icon: 'ℹ️' }) }
+      toast.success('Datos completados desde catalogo SEPA')
+    } catch { toast('No encontrado en catalogo, completa manualmente', { icon: 'ℹ️' }) }
     finally { setBuscando(false) }
   }
 
@@ -49,8 +115,9 @@ function ModalProducto({ producto, onClose, onSave }) {
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-3">
+          {/* Código de barras */}
           <div>
-            <label className="label">Código de barras</label>
+            <label className="label">Codigo de barras</label>
             <div className="flex gap-2">
               <input className="input" value={form.codigo_barras}
                 onChange={e => setForm(f => ({...f, codigo_barras: e.target.value}))}
@@ -75,42 +142,56 @@ function ModalProducto({ producto, onClose, onSave }) {
               onEscaneo={async (codigo) => {
                 setForm(f => ({ ...f, codigo_barras: codigo }))
                 setMostrarEscaner(false)
-                // Buscar en catálogo automáticamente
                 setBuscando(true)
                 try {
                   const res = await productoService.buscarEnCatalogo(codigo)
                   setForm(f => ({ ...f, codigo_barras: codigo, nombre: res.data.nombre, marca: res.data.marca, tipo: res.data.tipo }))
-                  toast.success('Datos completados desde catálogo SEPA')
+                  toast.success('Datos completados desde catalogo SEPA')
                 } catch {
-                  toast('No encontrado en catálogo, completá manualmente', { icon: 'ℹ️' })
+                  toast('No encontrado en catalogo, completa manualmente', { icon: 'ℹ️' })
                 } finally { setBuscando(false) }
               }}
               onCerrar={() => setMostrarEscaner(false)}
             />
           )}
+
+          {/* Nombre */}
           <div>
             <label className="label">Nombre</label>
             <input className="input" value={form.nombre}
               onChange={e => setForm(f => ({...f, nombre: e.target.value}))}
               placeholder="Nombre del producto" required />
           </div>
+
+          {/* Tipo y Marca con autocompletado */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Tipo</label>
-              <input className="input" value={form.tipo}
-                onChange={e => setForm(f => ({...f, tipo: e.target.value}))} placeholder="Ej: Bebida" />
+              <label className="label">Tipo / Categoria</label>
+              <AutocompleteInput
+                value={form.tipo}
+                onChange={val => setForm(f => ({...f, tipo: val}))}
+                opciones={tiposExistentes}
+                placeholder="Ej: Bebida"
+              />
             </div>
             <div>
               <label className="label">Marca</label>
-              <input className="input" value={form.marca}
-                onChange={e => setForm(f => ({...f, marca: e.target.value}))} placeholder="Ej: Coca-Cola" />
+              <AutocompleteInput
+                value={form.marca}
+                onChange={val => setForm(f => ({...f, marca: val}))}
+                opciones={marcasExistentes}
+                placeholder="Ej: Coca-Cola"
+              />
             </div>
           </div>
+
+          {/* Costo, Margen, Stock */}
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="label">Costo ($)</label>
               <input className="input" type="number" step="0.01" value={form.precio_costo}
-                onChange={e => setForm(f => ({...f, precio_costo: e.target.value}))} placeholder="0.00" required />
+                onChange={e => setForm(f => ({...f, precio_costo: e.target.value}))}
+                placeholder="0.00" required />
             </div>
             <div>
               <label className="label">Margen (%)</label>
@@ -123,10 +204,13 @@ function ModalProducto({ producto, onClose, onSave }) {
                 onChange={e => setForm(f => ({...f, stock: e.target.value}))} />
             </div>
           </div>
+
+          {/* Precio calculado */}
           <div className="bg-blue-50 rounded-lg px-4 py-2 text-sm">
             <span className="text-gray-600">Precio de venta: </span>
             <span className="font-bold text-blue-700">${precioVenta}</span>
           </div>
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1">
@@ -139,12 +223,15 @@ function ModalProducto({ producto, onClose, onSave }) {
   )
 }
 
+// ── Página principal Inventario ───────────────────────────────────────────────
 export default function Inventario() {
   const [productos, setProductos] = useState([])
   const [busqueda, setBusqueda] = useState('')
   const [bajoStock, setBajoStock] = useState(false)
   const [modal, setModal] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [tiposExistentes, setTiposExistentes] = useState([])
+  const [marcasExistentes, setMarcasExistentes] = useState([])
   const [searchParams] = useSearchParams()
   const { usuario } = useAuthStore()
   const isAdmin = usuario?.rol === 'ADMIN'
@@ -155,6 +242,12 @@ export default function Inventario() {
     try {
       const res = await productoService.listar({ busqueda: busqueda || undefined, bajo_stock: bajoStock || undefined })
       setProductos(res.data)
+
+      // Extraer tipos y marcas únicos para el autocompletado
+      const tipos = [...new Set(res.data.map(p => p.tipo).filter(t => t && t !== '-'))].sort()
+      const marcas = [...new Set(res.data.map(p => p.marca).filter(m => m && m !== '-'))].sort()
+      setTiposExistentes(tipos)
+      setMarcasExistentes(marcas)
     } catch { toast.error('Error al cargar productos') }
     finally { setLoading(false) }
   }
@@ -170,6 +263,7 @@ export default function Inventario() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Inventario</h1>
@@ -182,6 +276,7 @@ export default function Inventario() {
         )}
       </div>
 
+      {/* Filtros */}
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
@@ -211,7 +306,7 @@ export default function Inventario() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-100">
             <tr>
-              {['Código', 'Nombre', 'Tipo', 'Marca', 'Costo', 'Venta', 'Stock', ''].map(h => (
+              {['Codigo', 'Nombre', 'Tipo', 'Marca', 'Costo', 'Venta', 'Stock', ''].map(h => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
@@ -284,8 +379,13 @@ export default function Inventario() {
       </div>
 
       {modal && (
-        <ModalProducto producto={modal === 'nuevo' ? null : modal}
-          onClose={() => setModal(null)} onSave={() => { setModal(null); cargar() }} />
+        <ModalProducto
+          producto={modal === 'nuevo' ? null : modal}
+          onClose={() => setModal(null)}
+          onSave={() => { setModal(null); cargar() }}
+          tiposExistentes={tiposExistentes}
+          marcasExistentes={marcasExistentes}
+        />
       )}
     </div>
   )
