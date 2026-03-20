@@ -1,4 +1,5 @@
 importar_sepa_completo.py
+crear_demo.py
 venv/
 __pycache__/
 *.pyc
