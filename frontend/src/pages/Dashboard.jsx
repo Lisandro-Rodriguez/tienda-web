@@ -59,6 +59,42 @@ export default function Dashboard() {
     </div>
   )
 
+  // Bienvenida para negocios nuevos sin datos
+  const esNuevo = !data?.total_productos && !data?.hoy_ventas
+  if (esNuevo) return (
+    <div className="p-4 md:p-6">
+      <div className="max-w-lg mx-auto text-center py-8 md:py-12">
+        <div className="w-20 h-20 bg-blue-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+          <span className="text-4xl">🏪</span>
+        </div>
+        <h1 className="text-2xl font-extrabold text-gray-800 mb-2">
+          ¡Bienvenido a tu tienda!
+        </h1>
+        <p className="text-gray-500 mb-8">
+          Tu sistema está listo. Seguí estos pasos para empezar:
+        </p>
+        <div className="space-y-3 text-left">
+          {[
+            { num: '1', titulo: 'Cargá tus productos', desc: 'Andá a Inventario y agregá tus productos con precio y stock', link: '/inventario' },
+            { num: '2', titulo: 'Registrá tus clientes', desc: 'En Fiado podés agregar clientes para ventas a cuenta', link: '/clientes' },
+            { num: '3', titulo: 'Empezá a vender', desc: 'Usá la Caja para registrar ventas escaneando códigos', link: '/ventas' },
+          ].map(paso => (
+            <a key={paso.num} href={paso.link}
+              className="flex items-start gap-4 card p-4 hover:border-blue-200 hover:shadow-md transition-all cursor-pointer no-underline">
+              <div className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center font-bold flex-shrink-0">
+                {paso.num}
+              </div>
+              <div>
+                <p className="font-bold text-gray-800">{paso.titulo}</p>
+                <p className="text-sm text-gray-500">{paso.desc}</p>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
