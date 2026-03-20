@@ -15,6 +15,8 @@ export default function Ventas() {
   const [pagaCon, setPagaCon] = useState('')
   const [procesando, setProcesando] = useState(false)
   const [mostrarResumen, setMostrarResumen] = useState(false)
+  const [sugerencias, setSugerencias] = useState([])
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
   const inputRef = useRef(null)
 
@@ -85,11 +87,67 @@ export default function Ventas() {
       <div className="flex-1 flex flex-col p-4 md:p-6 space-y-3 overflow-auto">
         <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Caja y Ventas</h1>
 
-        {/* Buscador */}
-        <form onSubmit={agregarProducto} className="flex gap-2">
-          <input ref={inputRef} value={codigo} onChange={e => setCodigo(e.target.value)}
-            className="input flex-1 text-base" placeholder="Código de barras o nombre..."
-            autoComplete="off" />
+        {/* Buscador con sugerencias por nombre */}
+        <form onSubmit={agregarProducto} className="flex gap-2 relative">
+          <div className="flex-1 relative">
+            <input ref={inputRef} value={codigo} onChange={async e => {
+              const val = e.target.value
+              setCodigo(val)
+              if (val.length >= 2 && isNaN(val)) {
+                try {
+                  const res = await productoService.listar({ busqueda: val })
+                  setSugerencias(res.data.slice(0, 6))
+                  setMostrarSugerencias(res.data.length > 0)
+                } catch { setSugerencias([]); setMostrarSugerencias(false) }
+              } else {
+                setSugerencias([])
+                setMostrarSugerencias(false)
+              }
+            }}
+              onBlur={() => setTimeout(() => setMostrarSugerencias(false), 150)}
+              className="input w-full text-base" placeholder="Código de barras o nombre del producto..."
+              autoComplete="off" />
+            {mostrarSugerencias && sugerencias.length > 0 && (
+              <div style={{position:'absolute', zIndex:9999, width:'100%', background:'white',
+                border:'1px solid #e5e7eb', borderRadius:'8px', boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+                top:'100%', marginTop:'4px', maxHeight:'240px', overflowY:'auto'}}>
+                {sugerencias.map(p => (
+                  <button key={p.id} type="button"
+                    onMouseDown={() => {
+                      if (p.stock <= 0) { toast.error('Sin stock disponible'); return }
+                      setCarrito(c => {
+                        const idx = c.findIndex(i => i.producto_id === p.id)
+                        if (idx >= 0) {
+                          const nuevo = [...c]
+                          nuevo[idx] = { ...nuevo[idx], cantidad: nuevo[idx].cantidad + 1, subtotal: (nuevo[idx].cantidad + 1) * nuevo[idx].precio_unitario }
+                          return nuevo
+                        }
+                        return [...c, { producto_id: p.id, nombre_producto: p.nombre, cantidad: 1, precio_unitario: p.precio_venta, precio_costo: p.precio_costo, subtotal: p.precio_venta }]
+                      })
+                      setCodigo('')
+                      setSugerencias([])
+                      setMostrarSugerencias(false)
+                      inputRef.current?.focus()
+                    }}
+                    style={{display:'flex', width:'100%', alignItems:'center', justifyContent:'space-between',
+                      padding:'10px 14px', background:'none', border:'none', cursor:'pointer',
+                      borderBottom:'1px solid #f3f4f6', textAlign:'left'}}
+                    onMouseEnter={e => e.currentTarget.style.background='#eff6ff'}
+                    onMouseLeave={e => e.currentTarget.style.background='none'}
+                  >
+                    <div>
+                      <p style={{fontWeight:600, fontSize:'14px', color:'#1f2937'}}>{p.nombre}</p>
+                      <p style={{fontSize:'12px', color:'#9ca3af'}}>{p.marca} · Stock: {p.stock}</p>
+                    </div>
+                    <div style={{textAlign:'right', flexShrink:0, marginLeft:'12px'}}>
+                      <p style={{fontWeight:700, color:'#059669'}}>${p.precio_venta.toFixed(2)}</p>
+                      {p.stock <= 5 && <p style={{fontSize:'11px', color:'#ef4444'}}>⚠️ Poco stock</p>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button type="button" onClick={() => setMostrarEscaner(true)}
             className="md:hidden btn-secondary px-3 flex items-center gap-1">
             <Camera size={18} />
@@ -205,14 +263,8 @@ export default function Ventas() {
         {metodo === 'Efectivo' && (
           <div>
             <label className="label text-sm">Paga con ($)</label>
-            <input type="number" step="0.01" className="input" min="0"
-              value={pagaCon}
-              onChange={e => {
-                const val = e.target.value
-                if (val === '' || parseFloat(val) >= 0) setPagaCon(val)
-              }}
-              onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
-              placeholder="0.00" />
+            <input type="number" step="0.01" className="input"
+              value={pagaCon} onChange={e => setPagaCon(e.target.value)} placeholder="0.00" />
             {pagaCon && (
               parseFloat(pagaCon) >= total
                 ? <p className="text-green-600 font-bold text-sm mt-1">✓ Vuelto: ${vuelto.toFixed(2)}</p>
