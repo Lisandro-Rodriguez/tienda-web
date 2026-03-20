@@ -115,8 +115,24 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
 
     setLoading(true)
     try {
-      if (producto) { await productoService.actualizar(producto.id, form); toast.success('Producto actualizado') }
-      else { await productoService.crear(form); toast.success('Producto registrado') }
+      if (producto) {
+        await productoService.actualizar(producto.id, form)
+        toast.success('Producto actualizado')
+      } else {
+        // Verificar nombre duplicado en frontend antes de llamar al backend
+        const productosActuales = await productoService.listar({})
+        const nombreLimpio = form.nombre.trim().toLowerCase()
+        const duplicado = productosActuales.data.find(
+          p => p.nombre.trim().toLowerCase() === nombreLimpio
+        )
+        if (duplicado) {
+          toast.error(`Ya existe un producto con el nombre "${form.nombre.trim()}"`)
+          setLoading(false)
+          return
+        }
+        await productoService.crear(form)
+        toast.success('Producto registrado')
+      }
       onSave()
     } catch (err) { toast.error(err.response?.data?.detail || 'Error al guardar') }
     finally { setLoading(false) }
