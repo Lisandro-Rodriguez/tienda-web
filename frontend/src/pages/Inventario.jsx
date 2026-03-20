@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { productoService } from '../services/api'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
@@ -6,23 +6,66 @@ import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera } from 'lucide-re
 import { useAuthStore } from '../store/authStore'
 import EscanerCamara from '../components/ui/EscanerCamara'
 
-// ── Componente AutocompleteInput usando datalist nativo ──────────────────────
-function AutocompleteInput({ value, onChange, opciones, placeholder, id }) {
-  const listId = id || 'autocomplete-' + placeholder?.replace(/\s/g, '')
+function AutocompleteInput({ value, onChange, opciones, placeholder }) {
+  const [abierto, setAbierto] = React.useState(false)
+  const [filtradas, setFiltradas] = React.useState([])
+  const ref = React.useRef(null)
+
+  React.useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setAbierto(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const handleChange = (val) => {
+    onChange(val)
+    const f = opciones.filter(o => o.toLowerCase().includes(val.toLowerCase()))
+    setFiltradas(f)
+    setAbierto(f.length > 0)
+  }
+
+  const handleFocus = () => {
+    const f = value
+      ? opciones.filter(o => o.toLowerCase().includes(value.toLowerCase()))
+      : [...opciones]
+    setFiltradas(f)
+    setAbierto(f.length > 0)
+  }
+
   return (
-    <>
+    <div className="relative" ref={ref}>
       <input
         className="input"
         value={value}
-        onChange={e => onChange(e.target.value)}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={handleFocus}
         placeholder={placeholder}
-        list={listId}
         autoComplete="off"
       />
-      <datalist id={listId}>
-        {opciones.map((op, i) => <option key={i} value={op} />)}
-      </datalist>
-    </>
+      {abierto && filtradas.length > 0 && (
+        <div style={{position:'absolute', zIndex:9999, width:'100%', background:'white',
+          border:'1px solid #e5e7eb', borderRadius:'8px', boxShadow:'0 4px 16px rgba(0,0,0,0.12)',
+          marginTop:'2px', maxHeight:'180px', overflowY:'auto'}}>
+          {filtradas.map((op, i) => (
+            <button
+              key={i}
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); onChange(op); setAbierto(false) }}
+              onTouchEnd={(e) => { e.preventDefault(); onChange(op); setAbierto(false) }}
+              style={{display:'block', width:'100%', textAlign:'left',
+                padding:'8px 12px', fontSize:'14px', background:'none', border:'none',
+                cursor:'pointer'}}
+              onMouseEnter={e => e.target.style.background='#eff6ff'}
+              onMouseLeave={e => e.target.style.background='none'}
+            >
+              {op}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
