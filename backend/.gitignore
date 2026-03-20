@@ -1,0 +1,5 @@
+importar_sepa_railway.py
+venv/
+__pycache__/
+*.pyc
+.env
