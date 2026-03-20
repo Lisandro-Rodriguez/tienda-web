@@ -6,68 +6,23 @@ import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera } from 'lucide-re
 import { useAuthStore } from '../store/authStore'
 import EscanerCamara from '../components/ui/EscanerCamara'
 
-// ── Componente AutocompleteInput ──────────────────────────────────────────────
-function AutocompleteInput({ value, onChange, opciones, placeholder, className }) {
-  const [abierto, setAbierto] = useState(false)
-  const [filtradas, setFiltradas] = useState([])
-  const ref = useRef(null)
-
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setAbierto(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
-
-  const handleChange = (val) => {
-    onChange(val)
-    const f = opciones.filter(o =>
-      o.toLowerCase().includes(val.toLowerCase()) &&
-      o.toLowerCase() !== val.toLowerCase()
-    )
-    setFiltradas(f)
-    setAbierto(f.length > 0 && val.length > 0)
-  }
-
-  const handleFocus = () => {
-    const f = value
-      ? opciones.filter(o => o.toLowerCase().includes(value.toLowerCase()))
-      : opciones
-    setFiltradas(f)
-    setAbierto(f.length > 0)
-  }
-
-  const seleccionar = (opcion) => {
-    onChange(opcion)
-    setAbierto(false)
-  }
-
+// ── Componente AutocompleteInput usando datalist nativo ──────────────────────
+function AutocompleteInput({ value, onChange, opciones, placeholder, id }) {
+  const listId = id || 'autocomplete-' + placeholder?.replace(/\s/g, '')
   return (
-    <div className="relative" ref={ref}>
+    <>
       <input
-        className={className || 'input'}
+        className="input"
         value={value}
-        onChange={e => handleChange(e.target.value)}
-        onFocus={handleFocus}
+        onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        list={listId}
         autoComplete="off"
       />
-      {abierto && filtradas.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
-          {filtradas.map((op, i) => (
-            <button
-              key={i}
-              type="button"
-              onMouseDown={() => seleccionar(op)}
-              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 hover:text-blue-700 transition-colors first:rounded-t-lg last:rounded-b-lg"
-            >
-              {op}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+      <datalist id={listId}>
+        {opciones.map((op, i) => <option key={i} value={op} />)}
+      </datalist>
+    </>
   )
 }
 
@@ -172,6 +127,7 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
                 onChange={val => setForm(f => ({...f, tipo: val}))}
                 opciones={tiposExistentes}
                 placeholder="Ej: Bebida"
+                id="autocomplete-tipo"
               />
             </div>
             <div>
@@ -181,6 +137,7 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
                 onChange={val => setForm(f => ({...f, marca: val}))}
                 opciones={marcasExistentes}
                 placeholder="Ej: Coca-Cola"
+                id="autocomplete-marca"
               />
             </div>
           </div>
