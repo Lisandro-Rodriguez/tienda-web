@@ -18,8 +18,9 @@ export default function Login() {
   useEffect(() => {
     if (token) navigate('/')
     negocioService.listar().then(r => {
-      setNegocios(r.data)
-      if (r.data.length === 1) setNegocioId(r.data[0].id)
+      const data = Array.isArray(r.data) ? r.data : []
+      setNegocios(data)
+      if (data.length === 1) setNegocioId(data[0].id)
     }).catch(() => {})
   }, [])
 
