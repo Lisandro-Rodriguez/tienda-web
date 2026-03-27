@@ -5,7 +5,6 @@ import { Html5Qrcode } from 'html5-qrcode'
 export default function EscanerCamara({ onEscaneo, onCerrar }) {
   const [error, setError] = useState(null)
   const [iniciando, setIniciando] = useState(true)
-  const [tapPos, setTapPos] = useState(null)
   const scannerRef = useRef(null)
   const idDiv = 'escaner-camara-div'
 
@@ -41,30 +40,10 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
     return () => { detener() }
   }, [])
 
-  const handleTap = async (e) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    setTapPos({ x, y })
-    setTimeout(() => setTapPos(null), 700)
-    try {
-      const video = document.querySelector(`#${idDiv} video`)
-      const track = video?.srcObject?.getVideoTracks?.()?.[0]
-      if (track) {
-        const caps = track.getCapabilities?.() || {}
-        if (caps.pointOfInterest) {
-          await track.applyConstraints({ advanced: [{ pointOfInterest: { x: x / rect.width, y: y / rect.height }, focusMode: 'auto' }] })
-          return
-        }
-        if (caps.focusMode?.includes?.('auto')) {
-          await track.applyConstraints({ advanced: [{ focusMode: 'auto' }] })
-          setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }), 500)
-          return
-        }
-      }
-    } catch (e) {}
+  const reenfocar = async () => {
+    setIniciando(true)
     await detener()
-    await new Promise(r => setTimeout(r, 150))
+    await new Promise(r => setTimeout(r, 200))
     await iniciarScanner()
   }
 
@@ -82,7 +61,7 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
       </div>
 
       {/* Área cámara */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onClick={handleTap}>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         {iniciando && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
             <p style={{ color: 'white', fontSize: 15 }}>Iniciando cámara...</p>
@@ -99,11 +78,14 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
           <>
             <div id={idDiv} style={{ width: '100%', height: '100%' }} />
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 80, pointerEvents: 'none' }}>
-              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' }}>Tocá para enfocar · El escáner detecta automáticamente</p>
+              <button onClick={reenfocar} style={{
+                background: 'rgba(0,0,0,0.6)', color: 'white', border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: 20, padding: '8px 20px', fontSize: 14, cursor: 'pointer', fontWeight: 600
+              }}>
+                ↺ Reenfocar cámara
+              </button>
             </div>
-            {tapPos && (
-              <div style={{ position: 'absolute', left: tapPos.x - 28, top: tapPos.y - 28, width: 56, height: 56, border: '2px solid #facc15', borderRadius: '50%', boxShadow: '0 0 12px #facc15aa', pointerEvents: 'none', animation: 'focusRing 0.7s ease-out forwards' }} />
-            )}
+
           </>
         )}
       </div>

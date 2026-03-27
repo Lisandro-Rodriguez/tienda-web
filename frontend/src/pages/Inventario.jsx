@@ -304,6 +304,26 @@ export default function Inventario() {
     } catch {}
   }
 
+  // Calcula el umbral efectivo para un producto según prioridad
+  const getUmbral = (producto) => {
+    // 1. Producto individual por código
+    const porProducto = umbrales.find(u => u.tipo === 'producto' && u.referencia === producto.codigo_barras)
+    if (porProducto) return porProducto.umbral
+    // 2. Por tipo
+    const porTipo = umbrales.find(u => u.tipo === 'tipo' && u.referencia === producto.tipo)
+    if (porTipo) return porTipo.umbral
+    // 3. Por marca
+    const porMarca = umbrales.find(u => u.tipo === 'marca' && u.referencia === producto.marca)
+    if (porMarca) return porMarca.umbral
+    // 4. Global
+    const global = umbrales.find(u => u.tipo === 'global')
+    if (global) return global.umbral
+    // 5. Default
+    return 5
+  }
+
+  const esBajoStock = (producto) => producto.stock <= getUmbral(producto)
+
   const guardarUmbral = async () => {
     if (!nuevoUmbral.umbral) { toast.error('Ingresa un valor'); return }
     try {
@@ -405,8 +425,8 @@ export default function Inventario() {
                 {isAdmin && <td className="px-4 py-3 text-gray-700">${p.precio_costo.toFixed(2)}</td>}
                 <td className="px-4 py-3 font-semibold text-green-700">${p.precio_venta.toFixed(2)}</td>
                 <td className="px-4 py-3">
-                  <span className={`font-bold ${p.stock <= 5 ? 'text-red-600' : 'text-gray-800'}`}>{p.stock}</span>
-                  {p.stock <= 5 && <AlertTriangle size={12} className="inline ml-1 text-red-500" />}
+                  <span className={`font-bold ${esBajoStock(p) ? 'text-red-600' : 'text-gray-800'}`}>{p.stock}</span>
+                  {esBajoStock(p) && <AlertTriangle size={12} className="inline ml-1 text-red-500" />}
                 </td>
                 <td className="px-4 py-3">
                   {isAdmin && (
@@ -439,8 +459,8 @@ export default function Inventario() {
               <div className="text-right ml-3 flex-shrink-0">
                 <p className="font-bold text-green-700">${p.precio_venta.toFixed(2)}</p>
                 {isAdmin && <p className="text-xs text-gray-400">costo: ${p.precio_costo.toFixed(2)}</p>}
-                <p className={`text-xs font-bold mt-0.5 ${p.stock <= 5 ? 'text-red-600' : 'text-gray-600'}`}>
-                  Stock: {p.stock} {p.stock <= 5 && '⚠️'}
+                <p className={`text-xs font-bold mt-0.5 ${esBajoStock(p) ? 'text-red-600' : 'text-gray-600'}`}>
+                  Stock: {p.stock} {esBajoStock(p) && '⚠️'}
                 </p>
               </div>
             </div>
