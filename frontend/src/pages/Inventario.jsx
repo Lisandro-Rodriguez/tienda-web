@@ -305,20 +305,15 @@ export default function Inventario() {
   }
 
   // Calcula el umbral efectivo para un producto según prioridad
-  const getUmbral = (producto) => {
-    // 1. Producto individual por código
-    const porProducto = umbrales.find(u => u.tipo === 'producto' && u.referencia === producto.codigo_barras)
+  const getUmbral = (producto, lista = umbrales) => {
+    const porProducto = lista.find(u => u.tipo === 'producto' && u.referencia === producto.codigo_barras)
     if (porProducto) return porProducto.umbral
-    // 2. Por tipo
-    const porTipo = umbrales.find(u => u.tipo === 'tipo' && u.referencia === producto.tipo)
+    const porTipo = lista.find(u => u.tipo === 'tipo' && u.referencia === producto.tipo)
     if (porTipo) return porTipo.umbral
-    // 3. Por marca
-    const porMarca = umbrales.find(u => u.tipo === 'marca' && u.referencia === producto.marca)
+    const porMarca = lista.find(u => u.tipo === 'marca' && u.referencia === producto.marca)
     if (porMarca) return porMarca.umbral
-    // 4. Global
-    const global = umbrales.find(u => u.tipo === 'global')
+    const global = lista.find(u => u.tipo === 'global')
     if (global) return global.umbral
-    // 5. Default
     return 5
   }
 
@@ -343,9 +338,13 @@ export default function Inventario() {
 
   useEffect(() => {
     if (searchParams.get('bajo_stock')) setBajoStock(true)
+    // Cargar umbrales primero, luego productos
     cargarUmbrales()
+    cargar()
   }, [])
   useEffect(() => { cargar() }, [busqueda, bajoStock])
+  // Recargar productos cuando cambien umbrales para recalcular stock bajo
+  useEffect(() => { if (umbrales.length > 0) cargar() }, [umbrales.length])
 
   const eliminar = async (id) => {
     if (!confirm('¿Eliminar este producto?')) return

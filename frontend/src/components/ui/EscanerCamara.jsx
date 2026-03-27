@@ -11,7 +11,10 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
   const detener = async () => {
     try {
       if (scannerRef.current?.isScanning) await scannerRef.current.stop()
-    } catch (e) {}
+      scannerRef.current = null
+    } catch (e) {
+      scannerRef.current = null
+    }
   }
 
   const iniciarScanner = async () => {
@@ -43,7 +46,10 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
   const reenfocar = async () => {
     setIniciando(true)
     await detener()
-    await new Promise(r => setTimeout(r, 200))
+    // Limpiar el div para que Html5Qrcode pueda reiniciar
+    const div = document.getElementById(idDiv)
+    if (div) div.innerHTML = ''
+    await new Promise(r => setTimeout(r, 300))
     await iniciarScanner()
   }
 
