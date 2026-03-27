@@ -21,7 +21,7 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
       scannerRef.current = scanner
       await scanner.start(
         { facingMode: 'environment' },
-        { fps: 15, qrbox: { width: 250, height: 150 }, aspectRatio: 1.5 },
+        { fps: 15, qrbox: { width: 260, height: 160 }, aspectRatio: window.innerHeight / window.innerWidth },
         (codigo) => {
           if (navigator.vibrate) navigator.vibrate(60)
           onEscaneo(codigo)
@@ -45,24 +45,15 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
-
-    // Mostrar círculo amarillo
     setTapPos({ x, y })
     setTimeout(() => setTapPos(null), 700)
-
-    // Intentar foco nativo
     try {
       const video = document.querySelector(`#${idDiv} video`)
       const track = video?.srcObject?.getVideoTracks?.()?.[0]
       if (track) {
         const caps = track.getCapabilities?.() || {}
         if (caps.pointOfInterest) {
-          await track.applyConstraints({
-            advanced: [{
-              pointOfInterest: { x: x / rect.width, y: y / rect.height },
-              focusMode: 'auto'
-            }]
-          })
+          await track.applyConstraints({ advanced: [{ pointOfInterest: { x: x / rect.width, y: y / rect.height }, focusMode: 'auto' }] })
           return
         }
         if (caps.focusMode?.includes?.('auto')) {
@@ -72,86 +63,62 @@ export default function EscanerCamara({ onEscaneo, onCerrar }) {
         }
       }
     } catch (e) {}
-
-    // Fallback iOS: reiniciar el scanner
     await detener()
     await new Promise(r => setTimeout(r, 150))
     await iniciarScanner()
   }
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#000', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 bg-black">
-        <div className="flex items-center gap-2 text-white">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', background: 'rgba(0,0,0,0.8)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'white' }}>
           <Camera size={20} />
-          <span className="font-semibold text-lg">Escanear código</span>
+          <span style={{ fontWeight: 600, fontSize: 17 }}>Escanear código</span>
         </div>
-        <button onClick={onCerrar} className="text-white bg-white/20 rounded-full p-2">
-          <X size={22} />
+        <button onClick={onCerrar} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white' }}>
+          <X size={20} />
         </button>
       </div>
 
-      {/* Cámara + overlay tap */}
-      <div className="flex-1 flex flex-col items-center justify-center bg-black px-4">
-        {iniciando && <p className="text-white text-sm animate-pulse mb-4">Iniciando cámara...</p>}
-
+      {/* Área cámara */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }} onClick={handleTap}>
+        {iniciando && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+            <p style={{ color: 'white', fontSize: 15 }}>Iniciando cámara...</p>
+          </div>
+        )}
         {error ? (
-          <div className="text-center px-6">
-            <p className="text-red-400 font-semibold mb-2">{error}</p>
-            <p className="text-gray-400 text-sm mb-6">Podés escribir el código manualmente</p>
-            <button onClick={onCerrar} className="bg-white text-black font-bold px-6 py-3 rounded-xl">Cerrar</button>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, textAlign: 'center' }}>
+            <Camera size={48} color="#f87171" style={{ marginBottom: 16 }} />
+            <p style={{ color: '#f87171', fontWeight: 600, marginBottom: 8 }}>{error}</p>
+            <p style={{ color: '#9ca3af', fontSize: 14, marginBottom: 24 }}>Podés escribir el código manualmente</p>
+            <button onClick={onCerrar} style={{ background: 'white', color: 'black', border: 'none', borderRadius: 12, padding: '12px 24px', fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>Cerrar y escribir</button>
           </div>
         ) : (
-          <div className="w-full max-w-sm relative">
-            {/* Video del scanner */}
-            <div id={idDiv} className="rounded-2xl overflow-hidden w-full" style={{ minHeight: 280 }} />
-
-            {/* Overlay transparente encima del video para capturar taps */}
-            <div
-              className="absolute inset-0 rounded-2xl"
-              style={{ zIndex: 10 }}
-              onClick={handleTap}
-            >
-              {/* Círculo de foco */}
-              {tapPos && (
-                <div
-                  className="absolute pointer-events-none"
-                  style={{
-                    left: tapPos.x - 28,
-                    top: tapPos.y - 28,
-                    width: 56,
-                    height: 56,
-                    border: '2px solid #facc15',
-                    borderRadius: '50%',
-                    boxShadow: '0 0 12px #facc15aa',
-                    animation: 'focusRing 0.7s ease-out forwards'
-                  }}
-                />
-              )}
+          <>
+            <div id={idDiv} style={{ width: '100%', height: '100%' }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 80, pointerEvents: 'none' }}>
+              <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, textAlign: 'center' }}>Tocá para enfocar · El escáner detecta automáticamente</p>
             </div>
-
-            <p className="text-gray-400 text-sm text-center mt-4">
-              Tocá para enfocar · El escáner detecta automáticamente
-            </p>
-          </div>
+            {tapPos && (
+              <div style={{ position: 'absolute', left: tapPos.x - 28, top: tapPos.y - 28, width: 56, height: 56, border: '2px solid #facc15', borderRadius: '50%', boxShadow: '0 0 12px #facc15aa', pointerEvents: 'none', animation: 'focusRing 0.7s ease-out forwards' }} />
+            )}
+          </>
         )}
       </div>
 
       {/* Footer */}
-      <div className="bg-black px-6 py-6">
-        <button onClick={onCerrar}
-          className="w-full bg-white/10 text-white font-semibold py-3 rounded-xl border border-white/20">
+      <div style={{ padding: '16px 24px', background: 'rgba(0,0,0,0.8)', flexShrink: 0 }}>
+        <button onClick={onCerrar} style={{ width: '100%', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 12, padding: '14px', fontWeight: 600, fontSize: 16, cursor: 'pointer' }}>
           Cancelar
         </button>
       </div>
 
       <style>{`
-        @keyframes focusRing {
-          0%   { opacity: 1; transform: scale(1.3); }
-          50%  { opacity: 1; transform: scale(1); }
-          100% { opacity: 0; transform: scale(0.9); }
-        }
+        #${idDiv} video { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+        #${idDiv} > div { width: 100% !important; height: 100% !important; padding: 0 !important; }
+        @keyframes focusRing { 0% { opacity:1; transform:scale(1.3); } 50% { opacity:1; transform:scale(1); } 100% { opacity:0; transform:scale(0.9); } }
       `}</style>
     </div>
   )

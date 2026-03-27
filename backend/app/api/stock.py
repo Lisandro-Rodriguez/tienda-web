@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.security import get_usuario_actual, require_admin
-from app.models.models import UmbralStock, Producto
 
 router = APIRouter(prefix="/api/stock", tags=["stock"])
 
 class UmbralIn(BaseModel):
-    tipo: str        # global | tipo | marca | producto
+    tipo: str
     referencia: str = ""
     umbral: int
 
@@ -20,39 +20,67 @@ class UmbralOut(BaseModel):
     umbral: int
     class Config: from_attributes = True
 
-@router.get("/umbrales", response_model=List[UmbralOut])
+@router.get("/umbrales")
 def listar_umbrales(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):
-    return db.query(UmbralStock).filter(UmbralStock.negocio_id == usuario.negocio_id).all()
+    # Crear tabla si no existe
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS umbrales_stock (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL,
+            tipo VARCHAR(20) NOT NULL,
+            referencia VARCHAR(200) DEFAULT '',
+            umbral INTEGER NOT NULL DEFAULT 5,
+            creado_en TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    db.commit()
+    
+    result = db.execute(text(
+        "SELECT id, tipo, referencia, umbral FROM umbrales_stock WHERE negocio_id = :nid"
+    ), {"nid": usuario.negocio_id}).fetchall()
+    
+    return [{"id": r[0], "tipo": r[1], "referencia": r[2], "umbral": r[3]} for r in result]
 
-@router.post("/umbrales", response_model=UmbralOut)
+@router.post("/umbrales")
 def guardar_umbral(
     data: UmbralIn,
     usuario=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    # Buscar si ya existe
-    existente = db.query(UmbralStock).filter(
-        UmbralStock.negocio_id == usuario.negocio_id,
-        UmbralStock.tipo == data.tipo,
-        UmbralStock.referencia == data.referencia
-    ).first()
+    # Crear tabla si no existe
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS umbrales_stock (
+            id SERIAL PRIMARY KEY,
+            negocio_id INTEGER NOT NULL,
+            tipo VARCHAR(20) NOT NULL,
+            referencia VARCHAR(200) DEFAULT '',
+            umbral INTEGER NOT NULL DEFAULT 5,
+            creado_en TIMESTAMP DEFAULT NOW()
+        )
+    """))
+    db.commit()
+
+    # Verificar si ya existe
+    existente = db.execute(text("""
+        SELECT id FROM umbrales_stock 
+        WHERE negocio_id = :nid AND tipo = :tipo AND referencia = :ref
+    """), {"nid": usuario.negocio_id, "tipo": data.tipo, "ref": data.referencia}).fetchone()
 
     if existente:
-        existente.umbral = data.umbral
+        db.execute(text(
+            "UPDATE umbrales_stock SET umbral = :umbral WHERE id = :id"
+        ), {"umbral": data.umbral, "id": existente[0]})
         db.commit()
-        db.refresh(existente)
-        return existente
-
-    nuevo = UmbralStock(
-        negocio_id=usuario.negocio_id,
-        tipo=data.tipo,
-        referencia=data.referencia,
-        umbral=data.umbral
-    )
-    db.add(nuevo)
-    db.commit()
-    db.refresh(nuevo)
-    return nuevo
+        return {"id": existente[0], "tipo": data.tipo, "referencia": data.referencia, "umbral": data.umbral}
+    else:
+        result = db.execute(text("""
+            INSERT INTO umbrales_stock (negocio_id, tipo, referencia, umbral)
+            VALUES (:nid, :tipo, :ref, :umbral)
+            RETURNING id
+        """), {"nid": usuario.negocio_id, "tipo": data.tipo, "ref": data.referencia, "umbral": data.umbral})
+        db.commit()
+        new_id = result.fetchone()[0]
+        return {"id": new_id, "tipo": data.tipo, "referencia": data.referencia, "umbral": data.umbral}
 
 @router.delete("/umbrales/{umbral_id}")
 def eliminar_umbral(
@@ -60,53 +88,8 @@ def eliminar_umbral(
     usuario=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    u = db.query(UmbralStock).filter(
-        UmbralStock.id == umbral_id,
-        UmbralStock.negocio_id == usuario.negocio_id
-    ).first()
-    if not u:
-        raise HTTPException(status_code=404, detail="No encontrado")
-    db.delete(u)
+    db.execute(text(
+        "DELETE FROM umbrales_stock WHERE id = :id AND negocio_id = :nid"
+    ), {"id": umbral_id, "nid": usuario.negocio_id})
     db.commit()
     return {"ok": True}
-
-@router.get("/calcular/{producto_id}")
-def calcular_umbral(
-    producto_id: int,
-    usuario=Depends(get_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    """Devuelve el umbral efectivo para un producto dado."""
-    producto = db.query(Producto).filter(
-        Producto.id == producto_id,
-        Producto.negocio_id == usuario.negocio_id
-    ).first()
-    if not producto:
-        raise HTTPException(status_code=404, detail="Producto no encontrado")
-
-    umbrales = db.query(UmbralStock).filter(
-        UmbralStock.negocio_id == usuario.negocio_id
-    ).all()
-
-    umbral = _calcular_umbral(producto, umbrales)
-    return {"umbral": umbral, "bajo_stock": producto.stock <= umbral}
-
-def _calcular_umbral(producto, umbrales):
-    """Prioridad: producto individual > tipo > marca > global > default 5"""
-    # 1. Producto individual
-    for u in umbrales:
-        if u.tipo == "producto" and u.referencia == producto.codigo_barras:
-            return u.umbral
-    # 2. Por tipo
-    for u in umbrales:
-        if u.tipo == "tipo" and u.referencia == producto.tipo:
-            return u.umbral
-    # 3. Por marca
-    for u in umbrales:
-        if u.tipo == "marca" and u.referencia == producto.marca:
-            return u.umbral
-    # 4. Global
-    for u in umbrales:
-        if u.tipo == "global":
-            return u.umbral
-    return 5

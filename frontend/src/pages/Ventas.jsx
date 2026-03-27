@@ -264,7 +264,11 @@ export default function Ventas() {
           <div>
             <label className="label text-sm">Paga con ($)</label>
             <input type="number" step="0.01" className="input"
-              value={pagaCon} onChange={e => setPagaCon(e.target.value)} placeholder="0.00" />
+              value={pagaCon}
+              onChange={e => { if (e.target.value === '' || parseFloat(e.target.value) >= 0) setPagaCon(e.target.value) }}
+              onKeyDown={e => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault() }}
+              min="0"
+              placeholder="0.00" />
             {pagaCon && (
               parseFloat(pagaCon) >= total
                 ? <p className="text-green-600 font-bold text-sm mt-1">✓ Vuelto: ${vuelto.toFixed(2)}</p>
