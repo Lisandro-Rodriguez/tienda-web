@@ -131,6 +131,7 @@ class VentaOut(BaseModel):
     costo_total: float
     metodo_pago: str
     fecha: datetime
+    cajero_username: Optional[str] = None   # ← nombre del cajero
     items: List[ItemVentaOut] = []
     class Config: from_attributes = True
 

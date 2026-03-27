@@ -10,6 +10,8 @@ export default function Historial() {
   const [loading, setLoading] = useState(true)
   const [negocio, setNegocio] = useState(null)
 
+  const ticketAbrirAutomatico = localStorage.getItem('ticket_abrir_automatico') === 'true'
+
   useEffect(() => {
     negocioService.miNegocio().then(r => setNegocio(r.data)).catch(() => {})
   }, [])
@@ -33,7 +35,14 @@ export default function Historial() {
   ]
 
   const descargarTicket = (venta) => {
-    generarTicketPDF({ venta, negocio })
+    generarTicketPDF({ venta, negocio, abrirAutomatico: ticketAbrirAutomatico })
+  }
+
+  const metodoBadge = (metodo) => {
+    const base = 'text-xs font-bold px-2 py-0.5 rounded-full'
+    if (metodo === 'Fiado') return `${base} bg-orange-100 text-orange-700`
+    if (metodo === 'Efectivo') return `${base} bg-green-100 text-green-700`
+    return `${base} bg-blue-100 text-blue-700`
   }
 
   return (
@@ -64,40 +73,36 @@ export default function Historial() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              {['#', 'Fecha', 'Items', 'Método', 'Total', 'Ganancia', ''].map((h, i) => (
+              {['#', 'Fecha', 'Cajero', 'Items', 'Método', 'Total', 'Ganancia', ''].map((h, i) => (
                 <th key={i} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Cargando...</td></tr>
             ) : ventas.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Sin ventas en este período</td></tr>
+              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Sin ventas en este período</td></tr>
             ) : ventas.map(v => (
               <tr key={v.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-gray-400 text-xs">#{v.id}</td>
                 <td className="px-4 py-3 text-gray-600 text-xs">
                   {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs max-w-[180px] truncate">
+                <td className="px-4 py-3 text-gray-600 text-xs font-medium">
+                  {v.cajero_username || '—'}
+                </td>
+                <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">
                   {v.items?.map(i => `${i.cantidad}x ${i.nombre_producto}`).join(', ')}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    v.metodo_pago === 'Fiado' ? 'bg-orange-100 text-orange-700' :
-                    v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}>{v.metodo_pago}</span>
+                  <span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span>
                 </td>
                 <td className="px-4 py-3 font-bold text-gray-800">${v.total.toFixed(2)}</td>
                 <td className="px-4 py-3 font-semibold text-green-600">${(v.total - v.costo_total).toFixed(2)}</td>
                 <td className="px-4 py-3">
-                  <button
-                    onClick={() => descargarTicket(v)}
-                    title="Descargar ticket"
-                    className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded"
-                  >
+                  <button onClick={() => descargarTicket(v)} title="Descargar ticket"
+                    className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded">
                     <FileText size={16} />
                   </button>
                 </td>
@@ -117,7 +122,14 @@ export default function Historial() {
           <div key={v.id} className="card p-4">
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400">#{v.id} · {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-xs text-gray-400">
+                    #{v.id} · {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                </div>
+                {v.cajero_username && (
+                  <p className="text-xs text-blue-600 font-semibold mt-0.5">{v.cajero_username}</p>
+                )}
                 <p className="text-sm text-gray-600 mt-0.5">
                   {v.items?.map(i => `${i.cantidad}x ${i.nombre_producto}`).join(', ').substring(0, 50)}
                 </p>
@@ -127,21 +139,14 @@ export default function Historial() {
                   <p className="font-bold text-gray-800">${v.total.toFixed(2)}</p>
                   <p className="text-xs text-green-600">+${(v.total - v.costo_total).toFixed(2)}</p>
                 </div>
-                <button
-                  onClick={() => descargarTicket(v)}
-                  title="Descargar ticket"
-                  className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50"
-                >
+                <button onClick={() => descargarTicket(v)} title="Descargar ticket"
+                  className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50">
                   <FileText size={18} />
                 </button>
               </div>
             </div>
             <div className="mt-2">
-              <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                v.metodo_pago === 'Fiado' ? 'bg-orange-100 text-orange-700' :
-                v.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
-                'bg-blue-100 text-blue-700'
-              }`}>{v.metodo_pago}</span>
+              <span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span>
             </div>
           </div>
         ))}

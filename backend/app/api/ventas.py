@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, Date
 from typing import Optional
 from datetime import date, timedelta
@@ -11,7 +11,30 @@ from app.models.models import CierreCaja
 
 router = APIRouter(prefix="/api/ventas", tags=["ventas"])
 
-@router.post("/", response_model=VentaOut)
+
+def venta_to_out(venta: Venta) -> dict:
+    """Serializa una Venta incluyendo el username del cajero."""
+    return {
+        "id": venta.id,
+        "total": venta.total,
+        "costo_total": venta.costo_total,
+        "metodo_pago": venta.metodo_pago,
+        "fecha": venta.fecha,
+        "cajero_username": venta.cajero.username if venta.cajero else None,
+        "items": [
+            {
+                "id": item.id,
+                "nombre_producto": item.nombre_producto,
+                "cantidad": item.cantidad,
+                "precio_unitario": item.precio_unitario,
+                "subtotal": item.subtotal,
+            }
+            for item in venta.items
+        ],
+    }
+
+
+@router.post("/")
 def registrar_venta(
     data: VentaCreate,
     usuario=Depends(get_usuario_actual),
@@ -71,16 +94,26 @@ def registrar_venta(
             db.add(mov)
 
     db.commit()
-    db.refresh(venta)
-    return venta
 
-@router.get("/", response_model=list[VentaOut])
+    # Recargar con relaciones para serializar cajero e items
+    venta = db.query(Venta).options(
+        joinedload(Venta.cajero),
+        joinedload(Venta.items)
+    ).filter(Venta.id == venta.id).first()
+
+    return venta_to_out(venta)
+
+
+@router.get("/")
 def listar_ventas(
     periodo: Optional[str] = Query("hoy"),  # hoy | semana | mes | todo
     usuario=Depends(get_usuario_actual),
     db: Session = Depends(get_db)
 ):
-    q = db.query(Venta).filter(Venta.negocio_id == usuario.negocio_id)
+    q = db.query(Venta).options(
+        joinedload(Venta.cajero),
+        joinedload(Venta.items)
+    ).filter(Venta.negocio_id == usuario.negocio_id)
 
     hoy = date.today()
     if periodo == "hoy":
@@ -90,29 +123,15 @@ def listar_ventas(
     elif periodo == "mes":
         q = q.filter(Venta.fecha >= hoy - timedelta(days=30))
 
-    return q.order_by(Venta.fecha.desc()).limit(200).all()
+    ventas = q.order_by(Venta.fecha.desc()).limit(200).all()
+    return [venta_to_out(v) for v in ventas]
+
 
 @router.get("/dashboard")
 def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):
     hoy = date.today()
     nid = usuario.negocio_id
 
-    def stats(dias):
-        desde = hoy - timedelta(days=dias) if dias else None
-        q = db.query(
-            func.coalesce(func.sum(Venta.total), 0),
-            func.coalesce(func.sum(Venta.costo_total), 0)
-        ).filter(Venta.negocio_id == nid)
-        if desde:
-            q = q.filter(Venta.fecha >= desde)
-        elif dias == 0:
-            q = q.filter(cast(Venta.fecha, Date) == hoy)
-        r = q.first()
-        ventas = float(r[0])
-        ganancia = ventas - float(r[1])
-        return {"ventas": round(ventas, 2), "ganancia": round(ganancia, 2)}
-
-    # Hoy
     hoy_stats = db.query(
         func.coalesce(func.sum(Venta.total), 0),
         func.coalesce(func.sum(Venta.costo_total), 0)
@@ -149,6 +168,7 @@ def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)
         "clientes_con_deuda": con_deuda,
     }
 
+
 # ─── Cierre de caja ───────────────────────────────────────────────────────────
 
 @router.post("/cierre", response_model=CierreOut)
@@ -167,8 +187,7 @@ def cerrar_caja(
     fiadas   = sum(v.total for v in ventas_abiertas if v.metodo_pago == "Fiado")
     total    = sum(v.total for v in ventas_abiertas)
 
-    # Pagos recibidos de cuentas corrientes en el turno
-    pagos_fiado = 0  # Se puede implementar con movimientos tipo ABONO
+    pagos_fiado = 0
 
     cierre = CierreCaja(
         negocio_id=usuario.negocio_id,
@@ -182,13 +201,13 @@ def cerrar_caja(
     )
     db.add(cierre)
 
-    # Marcar ventas como cerradas
     for v in ventas_abiertas:
         v.estado_caja = "CERRADA"
 
     db.commit()
     db.refresh(cierre)
     return cierre
+
 
 @router.get("/cierres", response_model=list[CierreOut])
 def historial_cierres(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):

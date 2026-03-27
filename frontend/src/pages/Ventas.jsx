@@ -22,8 +22,9 @@ export default function Ventas() {
   const [negocio, setNegocio] = useState(null)
   const inputRef = useRef(null)
 
-  // Leer preferencia de ticket automático desde localStorage
+  // Preferencias de ticket desde localStorage
   const ticketAutomatico = localStorage.getItem('ticket_automatico') !== 'false'
+  const ticketAbrirAutomatico = localStorage.getItem('ticket_abrir_automatico') === 'true'
 
   useEffect(() => {
     clienteService.listar().then(r => setClientes(r.data)).catch(() => {})
@@ -68,10 +69,6 @@ export default function Ventas() {
     })
   }
 
-  const descargarTicket = (venta) => {
-    generarTicketPDF({ venta, negocio })
-  }
-
   const confirmarVenta = async () => {
     if (carrito.length === 0) { toast.error('El carrito está vacío'); return }
     if (metodo === 'Fiado' && !clienteId) { toast.error('Seleccioná un cliente para venta a fiado'); return }
@@ -88,18 +85,16 @@ export default function Ventas() {
       const ventaRegistrada = res.data
 
       if (ticketAutomatico) {
-        // Generar PDF automáticamente
-        generarTicketPDF({ venta: ventaRegistrada, negocio })
-        toast.success('¡Venta registrada! Ticket descargado.')
+        generarTicketPDF({ venta: ventaRegistrada, negocio, abrirAutomatico: ticketAbrirAutomatico })
+        toast.success('¡Venta registrada! Ticket generado.')
       } else {
-        // Mostrar toast con botón para descargar manualmente
         toast.success(
           (t) => (
             <div className="flex items-center gap-3">
               <span>¡Venta registrada!</span>
               <button
                 onClick={() => {
-                  descargarTicket(ventaRegistrada)
+                  generarTicketPDF({ venta: ventaRegistrada, negocio, abrirAutomatico: ticketAbrirAutomatico })
                   toast.dismiss(t.id)
                 }}
                 className="flex items-center gap-1 bg-blue-600 text-white text-xs px-2 py-1 rounded-lg font-semibold"
@@ -128,7 +123,7 @@ export default function Ventas() {
       <div className="flex-1 flex flex-col p-4 md:p-6 space-y-3 overflow-auto">
         <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Caja y Ventas</h1>
 
-        {/* Buscador con sugerencias por nombre */}
+        {/* Buscador */}
         <form onSubmit={agregarProducto} className="flex gap-2 relative">
           <div className="flex-1 relative">
             <input ref={inputRef} value={codigo} onChange={async e => {
@@ -265,13 +260,11 @@ export default function Ventas() {
       `}>
         <h2 className="font-bold text-lg text-gray-700 hidden md:block">Resumen</h2>
 
-        {/* Total desktop */}
         <div className="bg-blue-600 rounded-2xl p-4 text-white text-center hidden md:block">
           <p className="text-sm font-semibold opacity-80">TOTAL</p>
           <p className="text-4xl font-extrabold">${total.toFixed(2)}</p>
         </div>
 
-        {/* Método de pago */}
         <div>
           <label className="label text-sm">Método de pago</label>
           <div className="grid grid-cols-4 md:grid-cols-2 gap-1 md:gap-2">
@@ -286,7 +279,6 @@ export default function Ventas() {
           </div>
         </div>
 
-        {/* Cliente fiado */}
         {metodo === 'Fiado' && (
           <div>
             <label className="label text-sm">Cliente</label>
@@ -299,7 +291,6 @@ export default function Ventas() {
           </div>
         )}
 
-        {/* Paga con */}
         {metodo === 'Efectivo' && (
           <div>
             <label className="label text-sm">Paga con ($)</label>
@@ -317,7 +308,6 @@ export default function Ventas() {
           </div>
         )}
 
-        {/* Botones */}
         <div className="space-y-2">
           <button onClick={confirmarVenta} disabled={procesando || carrito.length === 0}
             className="btn-success w-full py-3 text-base flex items-center justify-center gap-2">

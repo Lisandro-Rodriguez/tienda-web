@@ -1,20 +1,19 @@
 // src/utils/ticketPDF.js
-// Genera y descarga un ticket de comprobante en PDF
-// Uso: generarTicketPDF({ venta, negocio })
+// Genera un ticket de comprobante en PDF
+// Uso: generarTicketPDF({ venta, negocio, abrirAutomatico })
 // Requiere: npm install jspdf
 
 import { jsPDF } from 'jspdf'
 
-export function generarTicketPDF({ venta, negocio }) {
+export function generarTicketPDF({ venta, negocio, abrirAutomatico = false }) {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
-    format: [80, 200], // ancho ticket térmico 80mm, alto dinámico
+    format: [80, 200],
   })
 
   const ancho = 80
   const margen = 6
-  const contenido = ancho - margen * 2
   let y = 8
 
   const linea = () => {
@@ -25,12 +24,7 @@ export function generarTicketPDF({ venta, negocio }) {
   }
 
   const texto = (str, opciones = {}) => {
-    const {
-      size = 8,
-      bold = false,
-      align = 'left',
-      color = [30, 30, 30],
-    } = opciones
+    const { size = 8, bold = false, align = 'left', color = [30, 30, 30] } = opciones
     doc.setFontSize(size)
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
     doc.setTextColor(...color)
@@ -53,8 +47,8 @@ export function generarTicketPDF({ venta, negocio }) {
   y += 1
 
   if (negocio?.direccion) texto(negocio.direccion, { size: 7, align: 'center', color: [100, 100, 100] })
-  if (negocio?.telefono) texto(`Tel: ${negocio.telefono}`, { size: 7, align: 'center', color: [100, 100, 100] })
-  if (negocio?.cuit) texto(`CUIT: ${negocio.cuit}`, { size: 7, align: 'center', color: [100, 100, 100] })
+  if (negocio?.telefono)  texto(`Tel: ${negocio.telefono}`, { size: 7, align: 'center', color: [100, 100, 100] })
+  if (negocio?.cuit)      texto(`CUIT: ${negocio.cuit}`, { size: 7, align: 'center', color: [100, 100, 100] })
 
   y += 2
   linea()
@@ -68,6 +62,12 @@ export function generarTicketPDF({ venta, negocio }) {
   const horaStr = fecha.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
   texto(`${fechaStr}  ${horaStr}`, { size: 7, align: 'center', color: [100, 100, 100] })
 
+  // ── Cajero ───────────────────────────────────────────────
+  if (venta.cajero_username) {
+    y += 1
+    texto(`Atendido por: ${venta.cajero_username}`, { size: 7, align: 'center', color: [100, 100, 100] })
+  }
+
   y += 2
   linea()
 
@@ -76,13 +76,12 @@ export function generarTicketPDF({ venta, negocio }) {
   y += 1
 
   for (const item of venta.items || []) {
-    // Nombre del producto (puede truncarse si es muy largo)
     const nombre = item.nombre_producto.length > 28
       ? item.nombre_producto.substring(0, 26) + '…'
       : item.nombre_producto
 
-    texto(nombre, { size: 8, bold: false })
-    y -= 1 // pequeño ajuste para la línea de precio
+    texto(nombre, { size: 8 })
+    y -= 1
 
     const cantPrecio = `${item.cantidad} x $${item.precio_unitario.toFixed(2)}`
     const subtotal = `$${item.subtotal.toFixed(2)}`
@@ -101,7 +100,6 @@ export function generarTicketPDF({ venta, negocio }) {
   doc.text(`$${venta.total.toFixed(2)}`, ancho - margen, y, { align: 'right' })
   y += 6
 
-  // Método de pago
   texto(`Forma de pago: ${venta.metodo_pago}`, { size: 7.5, color: [80, 80, 80] })
 
   y += 3
@@ -112,15 +110,18 @@ export function generarTicketPDF({ venta, negocio }) {
   texto(mensajePie, { size: 7.5, align: 'center', color: [100, 100, 100] })
   y += 2
   texto('Este comprobante no reemplaza a la factura legal.', {
-    size: 6,
-    align: 'center',
-    color: [160, 160, 160],
+    size: 6, align: 'center', color: [160, 160, 160],
   })
 
-  // Ajustar alto del PDF al contenido real
-  // jsPDF no permite resize después de crear, pero 200mm alcanza para la mayoría
-  // Si querés altura exacta, calculá antes de crear el doc.
+  // ── Abrir en pestaña o descargar directo ─────────────────
+  const nombreArchivo = `ticket-${String(venta.id).padStart(6, '0')}.pdf`
 
-  // ── Descargar ────────────────────────────────────────────
-  doc.save(`ticket-${String(venta.id).padStart(6, '0')}.pdf`)
+  if (abrirAutomatico) {
+    const blob = doc.output('blob')
+    const url = URL.createObjectURL(blob)
+    window.open(url, '_blank')
+    setTimeout(() => URL.revokeObjectURL(url), 10000)
+  } else {
+    doc.save(nombreArchivo)
+  }
 }
