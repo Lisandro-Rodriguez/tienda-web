@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { negocioService, catalogoService } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
-import { Save, Database, CheckCircle, Package, Plus, Trash2, User, Shield, Eye, EyeOff } from 'lucide-react'
+import { Save, Database, CheckCircle, Package, Plus, Trash2, User, Shield, Eye, EyeOff, FileText } from 'lucide-react'
 
 export default function Configuracion() {
   const [form, setForm] = useState({
@@ -14,6 +14,12 @@ export default function Configuracion() {
   const [nuevoUsuario, setNuevoUsuario] = useState({ username: '', password: '', rol: 'CAJERO' })
   const [showPass, setShowPass] = useState(false)
   const [creando, setCreando] = useState(false)
+
+  // Toggle ticket automático — guardado en localStorage
+  const [ticketAutomatico, setTicketAutomatico] = useState(
+    localStorage.getItem('ticket_automatico') !== 'false'
+  )
+
   const { usuario } = useAuthStore()
 
   useEffect(() => {
@@ -65,6 +71,13 @@ export default function Configuracion() {
     } catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
+  const handleTicketToggle = () => {
+    const nuevo = !ticketAutomatico
+    setTicketAutomatico(nuevo)
+    localStorage.setItem('ticket_automatico', String(nuevo))
+    toast.success(nuevo ? 'Ticket automático activado' : 'Ticket automático desactivado')
+  }
+
   const campo = (label, key, placeholder, tipo = 'text') => (
     <div>
       <label className="label">{label}</label>
@@ -102,6 +115,41 @@ export default function Configuracion() {
             {guardando ? 'Guardando...' : 'Guardar configuracion'}
           </button>
         </form>
+      </div>
+
+      {/* Ticket PDF */}
+      <div className="card">
+        <h2 className="font-bold text-gray-700 mb-1 flex items-center gap-2">
+          <FileText size={18} className="text-blue-600" /> Ticket de comprobante
+        </h2>
+        <p className="text-xs text-gray-400 mb-4">
+          El ticket incluye los datos del negocio, productos vendidos, total y método de pago.
+          No reemplaza a la factura legal.
+        </p>
+
+        {/* Toggle */}
+        <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+          <div>
+            <p className="font-semibold text-sm text-gray-800">Descargar ticket al confirmar venta</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {ticketAutomatico
+                ? 'El PDF se descarga automáticamente al registrar cada venta'
+                : 'Podés descargar el ticket manualmente desde el historial o el aviso post-venta'}
+            </p>
+          </div>
+          <button
+            onClick={handleTicketToggle}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ml-4 ${
+              ticketAutomatico ? 'bg-blue-600' : 'bg-gray-200'
+            }`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                ticketAutomatico ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* Gestión de usuarios */}
@@ -188,7 +236,6 @@ export default function Configuracion() {
               </div>
             </div>
 
-            {/* Info de permisos según rol */}
             <div className={`rounded-lg p-3 text-xs ${
               nuevoUsuario.rol === 'ADMIN'
                 ? 'bg-blue-50 text-blue-700'

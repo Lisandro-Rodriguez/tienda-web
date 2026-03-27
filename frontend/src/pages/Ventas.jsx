@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
-import { productoService, ventaService, clienteService } from '../services/api'
+import { productoService, ventaService, clienteService, negocioService } from '../services/api'
 import toast from 'react-hot-toast'
-import { ShoppingCart, Plus, Minus, Trash2, CheckCircle, ChevronUp, ChevronDown, Camera } from 'lucide-react'
+import { ShoppingCart, Plus, Minus, Trash2, CheckCircle, ChevronUp, ChevronDown, Camera, FileText } from 'lucide-react'
 import EscanerCamara from '../components/ui/EscanerCamara'
+import { generarTicketPDF } from '../utils/ticketPDF'
 
 const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado']
 
@@ -18,10 +19,15 @@ export default function Ventas() {
   const [sugerencias, setSugerencias] = useState([])
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false)
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
+  const [negocio, setNegocio] = useState(null)
   const inputRef = useRef(null)
+
+  // Leer preferencia de ticket automático desde localStorage
+  const ticketAutomatico = localStorage.getItem('ticket_automatico') !== 'false'
 
   useEffect(() => {
     clienteService.listar().then(r => setClientes(r.data)).catch(() => {})
+    negocioService.miNegocio().then(r => setNegocio(r.data)).catch(() => {})
     inputRef.current?.focus()
   }, [])
 
@@ -62,6 +68,10 @@ export default function Ventas() {
     })
   }
 
+  const descargarTicket = (venta) => {
+    generarTicketPDF({ venta, negocio })
+  }
+
   const confirmarVenta = async () => {
     if (carrito.length === 0) { toast.error('El carrito está vacío'); return }
     if (metodo === 'Fiado' && !clienteId) { toast.error('Seleccioná un cliente para venta a fiado'); return }
@@ -70,8 +80,39 @@ export default function Ventas() {
     }
     setProcesando(true)
     try {
-      await ventaService.registrar({ cliente_id: clienteId ? parseInt(clienteId) : null, metodo_pago: metodo, items: carrito })
-      toast.success('¡Venta registrada!')
+      const res = await ventaService.registrar({
+        cliente_id: clienteId ? parseInt(clienteId) : null,
+        metodo_pago: metodo,
+        items: carrito
+      })
+      const ventaRegistrada = res.data
+
+      if (ticketAutomatico) {
+        // Generar PDF automáticamente
+        generarTicketPDF({ venta: ventaRegistrada, negocio })
+        toast.success('¡Venta registrada! Ticket descargado.')
+      } else {
+        // Mostrar toast con botón para descargar manualmente
+        toast.success(
+          (t) => (
+            <div className="flex items-center gap-3">
+              <span>¡Venta registrada!</span>
+              <button
+                onClick={() => {
+                  descargarTicket(ventaRegistrada)
+                  toast.dismiss(t.id)
+                }}
+                className="flex items-center gap-1 bg-blue-600 text-white text-xs px-2 py-1 rounded-lg font-semibold"
+              >
+                <FileText size={13} />
+                Ticket
+              </button>
+            </div>
+          ),
+          { duration: 5000 }
+        )
+      }
+
       setCarrito([]); setCodigo(''); setPagaCon(''); setClienteId(''); setMetodo('Efectivo')
       setMostrarResumen(false)
       inputRef.current?.focus()
@@ -159,7 +200,6 @@ export default function Ventas() {
           <EscanerCamara
             onEscaneo={(codigo) => {
               setCodigo(codigo)
-              // Buscar automáticamente al escanear
               setTimeout(() => {
                 document.querySelector('form')?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
               }, 100)
@@ -215,7 +255,7 @@ export default function Ventas() {
         )}
       </div>
 
-      {/* Panel derecho: cobro — desktop siempre visible, móvil como drawer */}
+      {/* Panel derecho: cobro */}
       <div className={`
         md:w-80 md:bg-white md:border-l md:border-gray-100 md:flex md:flex-col md:p-5 md:space-y-4
         fixed md:static inset-x-0 bottom-16 bg-white border-t border-gray-200 z-30 p-4 space-y-3

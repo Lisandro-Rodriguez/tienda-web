@@ -1,11 +1,18 @@
 import { useState, useEffect } from 'react'
-import { ventaService } from '../services/api'
+import { ventaService, negocioService } from '../services/api'
 import toast from 'react-hot-toast'
+import { FileText } from 'lucide-react'
+import { generarTicketPDF } from '../utils/ticketPDF'
 
 export default function Historial() {
   const [ventas, setVentas] = useState([])
   const [periodo, setPeriodo] = useState('hoy')
   const [loading, setLoading] = useState(true)
+  const [negocio, setNegocio] = useState(null)
+
+  useEffect(() => {
+    negocioService.miNegocio().then(r => setNegocio(r.data)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     setLoading(true)
@@ -24,6 +31,10 @@ export default function Historial() {
     { key: 'mes', label: '30 días' },
     { key: 'todo', label: 'Todo' },
   ]
+
+  const descargarTicket = (venta) => {
+    generarTicketPDF({ venta, negocio })
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -53,16 +64,16 @@ export default function Historial() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              {['#', 'Fecha', 'Items', 'Método', 'Total', 'Ganancia'].map(h => (
-                <th key={h} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
+              {['#', 'Fecha', 'Items', 'Método', 'Total', 'Ganancia', ''].map((h, i) => (
+                <th key={i} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Cargando...</td></tr>
             ) : ventas.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-gray-400">Sin ventas en este período</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-gray-400">Sin ventas en este período</td></tr>
             ) : ventas.map(v => (
               <tr key={v.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 text-gray-400 text-xs">#{v.id}</td>
@@ -81,6 +92,15 @@ export default function Historial() {
                 </td>
                 <td className="px-4 py-3 font-bold text-gray-800">${v.total.toFixed(2)}</td>
                 <td className="px-4 py-3 font-semibold text-green-600">${(v.total - v.costo_total).toFixed(2)}</td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => descargarTicket(v)}
+                    title="Descargar ticket"
+                    className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded"
+                  >
+                    <FileText size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -96,15 +116,24 @@ export default function Historial() {
         ) : ventas.map(v => (
           <div key={v.id} className="card p-4">
             <div className="flex items-start justify-between">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="text-xs text-gray-400">#{v.id} · {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}</p>
                 <p className="text-sm text-gray-600 mt-0.5">
                   {v.items?.map(i => `${i.cantidad}x ${i.nombre_producto}`).join(', ').substring(0, 50)}
                 </p>
               </div>
-              <div className="text-right ml-3 flex-shrink-0">
-                <p className="font-bold text-gray-800">${v.total.toFixed(2)}</p>
-                <p className="text-xs text-green-600">+${(v.total - v.costo_total).toFixed(2)}</p>
+              <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                <div className="text-right">
+                  <p className="font-bold text-gray-800">${v.total.toFixed(2)}</p>
+                  <p className="text-xs text-green-600">+${(v.total - v.costo_total).toFixed(2)}</p>
+                </div>
+                <button
+                  onClick={() => descargarTicket(v)}
+                  title="Descargar ticket"
+                  className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50"
+                >
+                  <FileText size={18} />
+                </button>
               </div>
             </div>
             <div className="mt-2">
