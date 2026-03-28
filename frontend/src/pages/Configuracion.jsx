@@ -2,21 +2,73 @@ import { useState, useEffect } from 'react'
 import { negocioService, catalogoService } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
-import { Save, Database, CheckCircle, Package, Plus, Trash2, User, Shield, Eye, EyeOff, FileText } from 'lucide-react'
+import { Save, Database, CheckCircle, Package, Plus, Trash2, User, Shield, Eye, EyeOff, FileText, Lock } from 'lucide-react'
 
 function Toggle({ value, onChange }) {
   return (
-    <button
-      type="button"
-      onClick={() => onChange(!value)}
-      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-        value ? 'bg-blue-600' : 'bg-gray-200'
-      }`}
-    >
-      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-        value ? 'translate-x-5' : 'translate-x-0'
-      }`} />
+    <button type="button" onClick={() => onChange(!value)}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${value ? 'bg-blue-600' : 'bg-gray-200'}`}>
+      <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${value ? 'translate-x-5' : 'translate-x-0'}`} />
     </button>
+  )
+}
+
+function FormCambiarPassword({ usernameActual }) {
+  const [form, setForm] = useState({ password_actual: '', password_nuevo: '', password_confirmar: '' })
+  const [show, setShow] = useState({ actual: false, nuevo: false, confirmar: false })
+  const [guardando, setGuardando] = useState(false)
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (form.password_nuevo !== form.password_confirmar) {
+      toast.error('Las contraseñas nuevas no coinciden'); return
+    }
+    if (form.password_nuevo.length < 4) {
+      toast.error('La nueva contraseña debe tener al menos 4 caracteres'); return
+    }
+    setGuardando(true)
+    try {
+      await negocioService.cambiarPassword({
+        password_actual: form.password_actual,
+        password_nuevo: form.password_nuevo,
+      })
+      toast.success('Contraseña actualizada')
+      setForm({ password_actual: '', password_nuevo: '', password_confirmar: '' })
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Error al cambiar contraseña')
+    } finally { setGuardando(false) }
+  }
+
+  const campoPass = (key, label, showKey) => (
+    <div>
+      <label className="label text-xs">{label}</label>
+      <div className="relative">
+        <input type={show[showKey] ? 'text' : 'password'} className="input text-sm pr-10"
+          value={form[key]}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          placeholder="••••••••" required />
+        <button type="button"
+          onClick={() => setShow(s => ({ ...s, [showKey]: !s[showKey] }))}
+          className="absolute right-3 top-2.5 text-gray-400">
+          {show[showKey] ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      {campoPass('password_actual', 'Contraseña actual', 'actual')}
+      {campoPass('password_nuevo', 'Nueva contraseña', 'nuevo')}
+      {campoPass('password_confirmar', 'Confirmar nueva contraseña', 'confirmar')}
+      {form.password_nuevo && form.password_confirmar && form.password_nuevo !== form.password_confirmar && (
+        <p className="text-xs text-red-500 font-medium">Las contraseñas no coinciden</p>
+      )}
+      <button type="submit" disabled={guardando} className="btn-primary flex items-center gap-2">
+        <Save size={16} />
+        {guardando ? 'Guardando...' : 'Cambiar contraseña'}
+      </button>
+    </form>
   )
 }
 
@@ -31,7 +83,6 @@ export default function Configuracion() {
   const [showPass, setShowPass] = useState(false)
   const [creando, setCreando] = useState(false)
 
-  // Preferencias de ticket en localStorage
   const [ticketAutomatico, setTicketAutomatico] = useState(
     localStorage.getItem('ticket_automatico') !== 'false'
   )
@@ -147,8 +198,6 @@ export default function Configuracion() {
           Comprobante interno con datos del negocio, productos y total. No reemplaza a la factura legal.
         </p>
         <div className="space-y-3">
-
-          {/* Toggle 1: generar automáticamente */}
           <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
             <div>
               <p className="font-semibold text-sm text-gray-800">Generar ticket al confirmar venta</p>
@@ -160,8 +209,6 @@ export default function Configuracion() {
             </div>
             <Toggle value={ticketAutomatico} onChange={handleTicketAutomatico} />
           </div>
-
-          {/* Toggle 2: abrir o descargar */}
           <div className={`flex items-center justify-between rounded-xl px-4 py-3 transition-opacity ${
             ticketAutomatico ? 'bg-gray-50 opacity-100' : 'bg-gray-50 opacity-40 pointer-events-none'
           }`}>
@@ -175,98 +222,110 @@ export default function Configuracion() {
             </div>
             <Toggle value={ticketAbrirAutomatico} onChange={handleTicketAbrir} />
           </div>
-
         </div>
       </div>
 
-      {/* Gestión de usuarios */}
+      {/* Cambiar contraseña */}
       <div className="card">
         <h2 className="font-bold text-gray-700 mb-1 flex items-center gap-2">
-          <User size={18} className="text-blue-600" /> Usuarios del negocio
+          <Lock size={18} className="text-blue-600" /> Cambiar mi contraseña
         </h2>
         <p className="text-xs text-gray-400 mb-4">
-          Los cajeros solo pueden vender, registrar fiado y ver historial. No ven costos ni ganancias.
+          Contraseña del usuario <strong>{usuario?.username}</strong>. Disponible para todos los roles.
         </p>
-        <div className="space-y-2 mb-4">
-          {usuarios.map(u => (
-            <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                  u.rol === 'ADMIN' ? 'bg-blue-600' : 'bg-gray-400'
-                }`}>
-                  {u.username[0].toUpperCase()}
+        <FormCambiarPassword usernameActual={usuario?.username} />
+      </div>
+
+      {/* Gestión de usuarios — solo admin */}
+      {usuario?.rol === 'ADMIN' && (
+        <div className="card">
+          <h2 className="font-bold text-gray-700 mb-1 flex items-center gap-2">
+            <User size={18} className="text-blue-600" /> Usuarios del negocio
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">
+            Los cajeros solo pueden vender, registrar fiado y ver historial. No ven costos ni ganancias.
+          </p>
+          <div className="space-y-2 mb-4">
+            {usuarios.map(u => (
+              <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                    u.rol === 'ADMIN' ? 'bg-blue-600' : 'bg-gray-400'
+                  }`}>
+                    {u.username[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-gray-800">{u.username}</p>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      u.rol === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                    }`}>
+                      {u.rol === 'ADMIN' ? 'Administrador' : 'Cajero'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!u.activo && <span className="text-xs text-gray-400">Inactivo</span>}
+                  {u.id !== usuario?.id && u.rol !== 'ADMIN' && (
+                    <button onClick={() => eliminarUsuario(u.id, u.username)}
+                      className="text-red-400 hover:text-red-600 p-1">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                  {u.id === usuario?.id && (
+                    <span className="text-xs text-blue-500 font-semibold">Vos</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="border-t pt-4">
+            <p className="text-sm font-bold text-gray-600 mb-3">Agregar nuevo usuario</p>
+            <form onSubmit={crearUsuario} className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="label text-xs">Nombre de usuario</label>
+                  <input className="input text-sm" value={nuevoUsuario.username}
+                    onChange={e => setNuevoUsuario(u => ({...u, username: e.target.value}))}
+                    placeholder="Ej: maria" required />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm text-gray-800">{u.username}</p>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    u.rol === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                  }`}>
-                    {u.rol === 'ADMIN' ? 'Administrador' : 'Cajero'}
-                  </span>
+                  <label className="label text-xs">Rol</label>
+                  <select className="input text-sm" value={nuevoUsuario.rol}
+                    onChange={e => setNuevoUsuario(u => ({...u, rol: e.target.value}))}>
+                    <option value="CAJERO">Cajero</option>
+                    <option value="ADMIN">Administrador</option>
+                  </select>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {!u.activo && <span className="text-xs text-gray-400">Inactivo</span>}
-                {u.id !== usuario?.id && u.rol !== 'ADMIN' && (
-                  <button onClick={() => eliminarUsuario(u.id, u.username)}
-                    className="text-red-400 hover:text-red-600 p-1">
-                    <Trash2 size={16} />
+              <div>
+                <label className="label text-xs">Contrasena</label>
+                <div className="relative">
+                  <input type={showPass ? 'text' : 'password'} className="input text-sm pr-10"
+                    value={nuevoUsuario.password}
+                    onChange={e => setNuevoUsuario(u => ({...u, password: e.target.value}))}
+                    placeholder="Minimo 4 caracteres" required minLength={4} />
+                  <button type="button" onClick={() => setShowPass(!showPass)}
+                    className="absolute right-3 top-2.5 text-gray-400">
+                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
-                )}
-                {u.id === usuario?.id && (
-                  <span className="text-xs text-blue-500 font-semibold">Vos</span>
-                )}
+                </div>
               </div>
-            </div>
-          ))}
+              <div className={`rounded-lg p-3 text-xs ${
+                nuevoUsuario.rol === 'ADMIN' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-600'
+              }`}>
+                {nuevoUsuario.rol === 'ADMIN'
+                  ? '✓ Acceso total: ventas, inventario, fiado, reportes, configuracion y ganancias'
+                  : '✓ Acceso limitado: solo caja de ventas, fiado e historial. No ve costos ni ganancias'}
+              </div>
+              <button type="submit" disabled={creando}
+                className="btn-primary w-full flex items-center justify-center gap-2">
+                <Plus size={16} />
+                {creando ? 'Creando...' : 'Crear usuario'}
+              </button>
+            </form>
+          </div>
         </div>
-        <div className="border-t pt-4">
-          <p className="text-sm font-bold text-gray-600 mb-3">Agregar nuevo usuario</p>
-          <form onSubmit={crearUsuario} className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="label text-xs">Nombre de usuario</label>
-                <input className="input text-sm" value={nuevoUsuario.username}
-                  onChange={e => setNuevoUsuario(u => ({...u, username: e.target.value}))}
-                  placeholder="Ej: maria" required />
-              </div>
-              <div>
-                <label className="label text-xs">Rol</label>
-                <select className="input text-sm" value={nuevoUsuario.rol}
-                  onChange={e => setNuevoUsuario(u => ({...u, rol: e.target.value}))}>
-                  <option value="CAJERO">Cajero</option>
-                  <option value="ADMIN">Administrador</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="label text-xs">Contrasena</label>
-              <div className="relative">
-                <input type={showPass ? 'text' : 'password'} className="input text-sm pr-10"
-                  value={nuevoUsuario.password}
-                  onChange={e => setNuevoUsuario(u => ({...u, password: e.target.value}))}
-                  placeholder="Minimo 4 caracteres" required minLength={4} />
-                <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-2.5 text-gray-400">
-                  {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </div>
-            <div className={`rounded-lg p-3 text-xs ${
-              nuevoUsuario.rol === 'ADMIN' ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-600'
-            }`}>
-              {nuevoUsuario.rol === 'ADMIN'
-                ? '✓ Acceso total: ventas, inventario, fiado, reportes, configuracion y ganancias'
-                : '✓ Acceso limitado: solo caja de ventas, fiado e historial. No ve costos ni ganancias'}
-            </div>
-            <button type="submit" disabled={creando}
-              className="btn-primary w-full flex items-center justify-center gap-2">
-              <Plus size={16} />
-              {creando ? 'Creando...' : 'Crear usuario'}
-            </button>
-          </form>
-        </div>
-      </div>
+      )}
 
       {/* Catálogo SEPA */}
       <div className="card">

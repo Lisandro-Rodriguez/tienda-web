@@ -39,6 +39,7 @@ export const negocioService = {
   registrar: (data) => api.post('/negocios/registro', data),
   miNegocio: () => api.get('/negocios/mi-negocio'),
   actualizar: (data) => api.put('/negocios/mi-negocio', data),
+  cambiarPassword: (data) => api.put('/negocios/mi-password', data),
   listarUsuarios: () => api.get('/negocios/usuarios'),
   crearUsuario: (data) => api.post('/negocios/usuarios', data),
   eliminarUsuario: (id) => api.delete(`/negocios/usuarios/${id}`),

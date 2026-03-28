@@ -179,3 +179,9 @@ class UsuarioOut(BaseModel):
     rol: str
     activo: bool
     class Config: from_attributes = True
+
+# ─── Cambiar contraseña ───────────────────────────────────────────────────────
+
+class CambiarPasswordRequest(BaseModel):
+    password_actual: str
+    password_nuevo: str
