@@ -185,3 +185,13 @@ class UsuarioOut(BaseModel):
 class CambiarPasswordRequest(BaseModel):
     password_actual: str
     password_nuevo: str
+
+# ─── Recuperación de contraseña ───────────────────────────────────────────────
+
+class RecuperarPasswordRequest(BaseModel):
+    email: str
+    negocio_id: int
+
+class ResetearPasswordRequest(BaseModel):
+    token: str
+    password_nuevo: str

@@ -34,12 +34,26 @@ class Usuario(Base):
     negocio_id  = Column(Integer, ForeignKey("negocios.id"), nullable=False)
     username    = Column(String(50), nullable=False)
     password_hash = Column(String(200), nullable=False)
-    rol         = Column(String(20), default="CAJERO")  # ADMIN | CAJERO
+    rol         = Column(String(20), default="CAJERO")
     activo      = Column(Boolean, default=True)
     creado_en   = Column(DateTime(timezone=True), server_default=func.now())
 
     negocio     = relationship("Negocio", back_populates="usuarios")
     ventas      = relationship("Venta", back_populates="cajero")
+
+# ─── Token de recuperación de contraseña ─────────────────────────────────────
+
+class TokenRecuperacion(Base):
+    __tablename__ = "tokens_recuperacion"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    usuario_id  = Column(Integer, ForeignKey("usuarios.id"), nullable=False)
+    token       = Column(String(64), unique=True, nullable=False, index=True)
+    usado       = Column(Boolean, default=False)
+    expira_en   = Column(DateTime(timezone=True), nullable=False)
+    creado_en   = Column(DateTime(timezone=True), server_default=func.now())
+
+    usuario     = relationship("Usuario")
 
 # ─── Producto ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +99,7 @@ class MovimientoCliente(Base):
 
     id          = Column(Integer, primary_key=True, index=True)
     cliente_id  = Column(Integer, ForeignKey("clientes.id"), nullable=False)
-    tipo        = Column(String(20), nullable=False)  # FIADO | ABONO
+    tipo        = Column(String(20), nullable=False)
     monto       = Column(Float, nullable=False)
     detalle     = Column(Text, default="")
     fecha       = Column(DateTime(timezone=True), server_default=func.now())
@@ -104,7 +118,7 @@ class Venta(Base):
     total       = Column(Float, nullable=False)
     costo_total = Column(Float, default=0)
     metodo_pago = Column(String(50), nullable=False)
-    estado_caja = Column(String(20), default="ABIERTA")  # ABIERTA | CERRADA
+    estado_caja = Column(String(20), default="ABIERTA")
     fecha       = Column(DateTime(timezone=True), server_default=func.now())
 
     negocio     = relationship("Negocio", back_populates="ventas")
@@ -145,7 +159,7 @@ class CierreCaja(Base):
 
     negocio           = relationship("Negocio", back_populates="cierres")
 
-# ─── Catálogo SEPA (compartido entre todos los negocios) ──────────────────────
+# ─── Catálogo SEPA ────────────────────────────────────────────────────────────
 
 class CatalogoSEPA(Base):
     __tablename__ = "catalogo_sepa"

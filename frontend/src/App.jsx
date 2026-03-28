@@ -3,6 +3,8 @@ import { Toaster } from 'react-hot-toast'
 import { useAuthStore } from './store/authStore'
 import Login from './pages/Login'
 import Registro from './pages/Registro'
+import RecuperarPassword from './pages/RecuperarPassword'
+import NuevaPassword from './pages/NuevaPassword'
 import Layout from './components/layout/Layout'
 import Dashboard from './pages/Dashboard'
 import Inventario from './pages/Inventario'
@@ -10,6 +12,7 @@ import Ventas from './pages/Ventas'
 import Clientes from './pages/Clientes'
 import Historial from './pages/Historial'
 import Configuracion from './pages/Configuracion'
+import Ayuda from './pages/Ayuda'
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { token, usuario } = useAuthStore()
@@ -30,8 +33,13 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <Routes>
+        {/* Rutas públicas */}
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
+        <Route path="/recuperar-password" element={<RecuperarPassword />} />
+        <Route path="/nueva-password" element={<NuevaPassword />} />
+
+        {/* Rutas protegidas */}
         <Route path="/" element={
           <ProtectedRoute><Layout /></ProtectedRoute>
         }>
@@ -46,6 +54,7 @@ export default function App() {
           <Route path="configuracion" element={
             <ProtectedRoute adminOnly><Configuracion /></ProtectedRoute>
           } />
+          <Route path="ayuda" element={<Ayuda />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
