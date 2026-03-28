@@ -124,30 +124,6 @@ def listar_ventas(
     return [venta_to_out(v) for v in ventas]
 
 
-@router.get("/{venta_id}")
-def obtener_venta(
-    venta_id: int,
-    usuario=Depends(get_usuario_actual),
-    db: Session = Depends(get_db)
-):
-    venta = db.query(Venta).options(
-        joinedload(Venta.cajero),
-        joinedload(Venta.items),
-        joinedload(Venta.cliente)
-    ).filter(
-        Venta.id == venta_id,
-        Venta.negocio_id == usuario.negocio_id  # seguridad multi-tenant
-    ).first()
-
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-
-    result = venta_to_out(venta)
-    # Agregar nombre del cliente si aplica
-    result["cliente_nombre"] = venta.cliente.nombre if venta.cliente else None
-    return result
-
-
 @router.get("/dashboard")
 def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)):
     hoy = date.today()
@@ -189,8 +165,6 @@ def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)
         "clientes_con_deuda": con_deuda,
     }
 
-
-# ─── Cierre de caja ───────────────────────────────────────────────────────────
 
 @router.post("/cierre", response_model=CierreOut)
 def cerrar_caja(
@@ -235,3 +209,28 @@ def historial_cierres(usuario=Depends(get_usuario_actual), db: Session = Depends
     return db.query(CierreCaja).filter(
         CierreCaja.negocio_id == usuario.negocio_id
     ).order_by(CierreCaja.fecha.desc()).limit(50).all()
+
+
+# ── Al final, la ruta con parámetro dinámico ──────────────────────────────────
+
+@router.get("/{venta_id}")
+def obtener_venta(
+    venta_id: int,
+    usuario=Depends(get_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).options(
+        joinedload(Venta.cajero),
+        joinedload(Venta.items),
+        joinedload(Venta.cliente)
+    ).filter(
+        Venta.id == venta_id,
+        Venta.negocio_id == usuario.negocio_id
+    ).first()
+
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    result = venta_to_out(venta)
+    result["cliente_nombre"] = venta.cliente.nombre if venta.cliente else None
+    return result
