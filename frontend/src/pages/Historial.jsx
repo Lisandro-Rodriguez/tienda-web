@@ -9,11 +9,8 @@ export default function Historial() {
   const [periodo, setPeriodo] = useState('hoy')
   const [loading, setLoading] = useState(true)
   const [negocio, setNegocio] = useState(null)
-
-  // Modal de detalle
   const [ventaDetalle, setVentaDetalle] = useState(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
-
   const ticketAbrirAutomatico = localStorage.getItem('ticket_abrir_automatico') === 'true'
 
   useEffect(() => {
@@ -39,19 +36,11 @@ export default function Historial() {
   ]
 
   const abrirDetalle = async (venta) => {
-    setLoadingDetalle(true)
-    setVentaDetalle(venta) // mostrar modal inmediatamente con datos del listado
-    try {
-      const res = await ventaService.obtener(venta.id)
-      setVentaDetalle(res.data) // actualizar con datos completos (cliente, etc)
-    } catch {
-      toast.error('Error al cargar el detalle')
-    } finally {
-      setLoadingDetalle(false)
-    }
+    setVentaDetalle(venta); setLoadingDetalle(true)
+    try { const res = await ventaService.obtener(venta.id); setVentaDetalle(res.data) }
+    catch { toast.error('Error al cargar el detalle') }
+    finally { setLoadingDetalle(false) }
   }
-
-  const cerrarDetalle = () => setVentaDetalle(null)
 
   const descargarTicket = (venta, e) => {
     e?.stopPropagation()
@@ -59,74 +48,82 @@ export default function Historial() {
   }
 
   const metodoBadge = (metodo) => {
-    const base = 'text-xs font-bold px-2 py-0.5 rounded-full'
-    if (metodo === 'Fiado') return `${base} bg-orange-100 text-orange-700`
-    if (metodo === 'Efectivo') return `${base} bg-green-100 text-green-700`
-    return `${base} bg-blue-100 text-blue-700`
+    if (metodo === 'Fiado') return 'badge badge-orange'
+    if (metodo === 'Efectivo') return 'badge badge-green'
+    return 'badge badge-blue'
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="page-wrap">
 
       {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Historial de Ventas</h1>
-        <div className="flex items-center gap-4 mt-1">
-          <p className="text-sm text-gray-500">Total: <strong>${totalPeriodo.toFixed(2)}</strong></p>
-          <p className="text-sm text-green-600">Ganancia: <strong>${gananciaTotal.toFixed(2)}</strong></p>
+      <div style={{marginBottom:'1.5rem'}}>
+        <h1 className="page-title">Historial de Ventas</h1>
+        <div style={{display:'flex',gap:'1.25rem',marginTop:'0.4rem'}}>
+          <p className="page-sub">Total: <strong style={{color:'var(--text)'}}>${totalPeriodo.toFixed(2)}</strong></p>
+          <p className="page-sub" style={{color:'var(--green)'}}>Ganancia: <strong>${gananciaTotal.toFixed(2)}</strong></p>
         </div>
       </div>
 
-      {/* Filtros período */}
-      <div className="flex gap-2">
+      {/* Filtros */}
+      <div style={{display:'flex',gap:6,marginBottom:'1.25rem'}}>
         {periodos.map(p => (
           <button key={p.key} onClick={() => setPeriodo(p.key)}
-            className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-colors ${
-              periodo === p.key ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600'
-            }`}>
+            className="btn"
+            style={{
+              flex:1, justifyContent:'center',
+              background: periodo === p.key ? 'var(--navy)' : '#fff',
+              color: periodo === p.key ? '#fff' : 'var(--text-2)',
+              border: `1px solid ${periodo === p.key ? 'var(--navy)' : 'var(--border)'}`,
+            }}>
             {p.label}
           </button>
         ))}
       </div>
 
       {/* Tabla desktop */}
-      <div className="card p-0 overflow-hidden hidden md:block">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b">
+      <div className="hidden md:block" style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden'}}>
+        <table className="tabla">
+          <thead>
             <tr>
-              {['#', 'Fecha', 'Cajero', 'Items', 'Método', 'Total', 'Ganancia', ''].map((h, i) => (
-                <th key={i} className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase">{h}</th>
-              ))}
+              <th>#</th>
+              <th>Fecha</th>
+              <th>Cajero</th>
+              <th>Items</th>
+              <th>Método</th>
+              <th>Total</th>
+              <th>Ganancia</th>
+              <th></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-50">
+          <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Cargando...</td></tr>
+              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem'}}>
+                <span className="loader" />
+              </td></tr>
             ) : ventas.length === 0 ? (
-              <tr><td colSpan={8} className="text-center py-10 text-gray-400">Sin ventas en este período</td></tr>
+              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem',color:'var(--text-3)'}}>
+                Sin ventas en este período
+              </td></tr>
             ) : ventas.map(v => (
-              <tr key={v.id}
-                onClick={() => abrirDetalle(v)}
-                className="hover:bg-blue-50 cursor-pointer transition-colors">
-                <td className="px-4 py-3 text-gray-400 text-xs">#{v.id}</td>
-                <td className="px-4 py-3 text-gray-600 text-xs">
+              <tr key={v.id} className="clickable" onClick={() => abrirDetalle(v)}>
+                <td style={{color:'var(--text-3)',fontSize:12}}>#{v.id}</td>
+                <td style={{color:'var(--text-2)',fontSize:12}}>
                   {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs font-medium">
-                  {v.cajero_username || '—'}
-                </td>
-                <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">
+                <td style={{fontSize:13,fontWeight:500}}>{v.cajero_username || '—'}</td>
+                <td style={{fontSize:12,color:'var(--text-2)',maxWidth:160,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
                   {v.items?.map(i => `${i.cantidad}x ${i.nombre_producto}`).join(', ')}
                 </td>
-                <td className="px-4 py-3">
-                  <span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span>
-                </td>
-                <td className="px-4 py-3 font-bold text-gray-800">${v.total.toFixed(2)}</td>
-                <td className="px-4 py-3 font-semibold text-green-600">${(v.total - v.costo_total).toFixed(2)}</td>
-                <td className="px-4 py-3">
-                  <button onClick={(e) => descargarTicket(v, e)} title="Descargar ticket"
-                    className="text-gray-400 hover:text-blue-600 transition-colors p-1 rounded">
-                    <FileText size={16} />
+                <td><span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span></td>
+                <td style={{fontWeight:700}}>${v.total.toFixed(2)}</td>
+                <td style={{color:'var(--green)',fontWeight:600}}>${(v.total - v.costo_total).toFixed(2)}</td>
+                <td>
+                  <button onClick={(e) => descargarTicket(v, e)}
+                    style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:4}}
+                    onMouseEnter={e => e.currentTarget.style.color='var(--accent)'}
+                    onMouseLeave={e => e.currentTarget.style.color='var(--text-3)'}>
+                    <FileText size={15} />
                   </button>
                 </td>
               </tr>
@@ -136,121 +133,99 @@ export default function Historial() {
       </div>
 
       {/* Cards móvil */}
-      <div className="md:hidden space-y-2">
+      <div className="md:hidden" style={{display:'flex',flexDirection:'column',gap:8}}>
         {loading ? (
-          <p className="text-center py-8 text-gray-400">Cargando...</p>
+          <div className="empty-state"><span className="loader" /></div>
         ) : ventas.length === 0 ? (
-          <p className="text-center py-8 text-gray-400">Sin ventas en este período</p>
+          <div className="empty-state"><p>Sin ventas en este período</p><p></p></div>
         ) : ventas.map(v => (
-          <div key={v.id} className="card p-4 cursor-pointer active:bg-blue-50 transition-colors"
+          <div key={v.id} className="card" style={{padding:'1rem',cursor:'pointer'}}
             onClick={() => abrirDetalle(v)}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs text-gray-400">
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:11,color:'var(--text-3)',marginBottom:2}}>
                   #{v.id} · {new Date(v.fecha).toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'short' })}
                 </p>
                 {v.cajero_username && (
-                  <p className="text-xs text-blue-600 font-semibold mt-0.5">{v.cajero_username}</p>
+                  <p style={{fontSize:12,color:'var(--accent)',fontWeight:600,marginBottom:2}}>{v.cajero_username}</p>
                 )}
-                <p className="text-sm text-gray-600 mt-0.5">
+                <p style={{fontSize:13,color:'var(--text-2)'}}>
                   {v.items?.map(i => `${i.cantidad}x ${i.nombre_producto}`).join(', ').substring(0, 50)}
                 </p>
               </div>
-              <div className="flex items-center gap-2 ml-3 flex-shrink-0">
-                <div className="text-right">
-                  <p className="font-bold text-gray-800">${v.total.toFixed(2)}</p>
-                  <p className="text-xs text-green-600">+${(v.total - v.costo_total).toFixed(2)}</p>
+              <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                <div style={{textAlign:'right'}}>
+                  <p style={{fontWeight:700,fontSize:15}}>${v.total.toFixed(2)}</p>
+                  <p style={{fontSize:11,color:'var(--green)'}}>+${(v.total - v.costo_total).toFixed(2)}</p>
                 </div>
-                <button onClick={(e) => descargarTicket(v, e)} title="Descargar ticket"
-                  className="text-gray-400 hover:text-blue-600 transition-colors p-1.5 rounded-lg hover:bg-blue-50">
-                  <FileText size={18} />
+                <button onClick={(e) => descargarTicket(v, e)}
+                  style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:6}}>
+                  <FileText size={17} />
                 </button>
               </div>
             </div>
-            <div className="mt-2">
+            <div style={{marginTop:8}}>
               <span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── Modal detalle de venta ────────────────────────────────────── */}
+      {/* Modal detalle */}
       {ventaDetalle && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
-          onClick={cerrarDetalle}>
-
-          {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-
-          {/* Panel */}
-          <div
-            className="relative bg-white w-full md:max-w-md md:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header modal */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+        <div className="modal-backdrop" onClick={() => setVentaDetalle(null)}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
-                <h2 className="font-extrabold text-gray-800 text-lg">
-                  Venta #{ventaDetalle.id}
-                </h2>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="modal-title">Venta #{ventaDetalle.id}</p>
+                <p style={{fontSize:11,color:'var(--text-3)',marginTop:2}}>
                   {new Date(ventaDetalle.fecha).toLocaleString('es-AR', {
-                    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
-                    hour: '2-digit', minute: '2-digit'
+                    weekday:'long', day:'2-digit', month:'long', hour:'2-digit', minute:'2-digit'
                   })}
                 </p>
               </div>
-              <button onClick={cerrarDetalle}
-                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors">
-                <X size={16} />
-              </button>
+              <button className="modal-close" onClick={() => setVentaDetalle(null)}><X size={15} /></button>
             </div>
 
-            {/* Info cajero / cliente / método */}
-            <div className="px-5 py-3 bg-gray-50 flex flex-wrap gap-3 border-b border-gray-100">
+            {/* Meta */}
+            <div style={{padding:'0.75rem 1.5rem',background:'var(--surface)',borderBottom:'1px solid var(--border)',
+              display:'flex',flexWrap:'wrap',gap:12}}>
               {ventaDetalle.cajero_username && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                  <User size={13} className="text-blue-500" />
-                  <span className="font-semibold">{ventaDetalle.cajero_username}</span>
+                <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--text-2)'}}>
+                  <User size={12} style={{color:'var(--accent)'}} />
+                  <span style={{fontWeight:600}}>{ventaDetalle.cajero_username}</span>
                 </div>
               )}
               {ventaDetalle.cliente_nombre && (
-                <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                  <Package size={13} className="text-orange-500" />
-                  <span className="font-semibold">{ventaDetalle.cliente_nombre}</span>
+                <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--text-2)'}}>
+                  <Package size={12} style={{color:'var(--orange)'}} />
+                  <span style={{fontWeight:600}}>{ventaDetalle.cliente_nombre}</span>
                 </div>
               )}
-              <div className="flex items-center gap-1.5 text-xs">
-                <CreditCard size={13} className="text-gray-400" />
-                <span className={`font-bold px-2 py-0.5 rounded-full ${
-                  ventaDetalle.metodo_pago === 'Fiado' ? 'bg-orange-100 text-orange-700' :
-                  ventaDetalle.metodo_pago === 'Efectivo' ? 'bg-green-100 text-green-700' :
-                  'bg-blue-100 text-blue-700'
-                }`}>{ventaDetalle.metodo_pago}</span>
-              </div>
+              <span className={metodoBadge(ventaDetalle.metodo_pago)}>{ventaDetalle.metodo_pago}</span>
             </div>
 
             {/* Items */}
-            <div className="px-5 py-3 max-h-64 overflow-y-auto">
+            <div style={{padding:'1rem 1.5rem',maxHeight:260,overflowY:'auto'}}>
               {loadingDetalle ? (
-                <p className="text-center py-6 text-gray-400 text-sm">Cargando detalle...</p>
+                <div style={{textAlign:'center',padding:'1.5rem'}}><span className="loader" /></div>
               ) : (
-                <table className="w-full text-sm">
+                <table className="tabla">
                   <thead>
-                    <tr className="text-xs text-gray-400 uppercase border-b border-gray-100">
-                      <th className="text-left pb-2">Producto</th>
-                      <th className="text-center pb-2">Cant.</th>
-                      <th className="text-right pb-2">Precio</th>
-                      <th className="text-right pb-2">Subtotal</th>
+                    <tr>
+                      <th>Producto</th>
+                      <th style={{textAlign:'center'}}>Cant.</th>
+                      <th style={{textAlign:'right'}}>Precio</th>
+                      <th style={{textAlign:'right'}}>Subtotal</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
+                  <tbody>
                     {ventaDetalle.items?.map((item, i) => (
                       <tr key={i}>
-                        <td className="py-2 text-gray-800 font-medium pr-2">{item.nombre_producto}</td>
-                        <td className="py-2 text-center text-gray-500">{item.cantidad}</td>
-                        <td className="py-2 text-right text-gray-500">${item.precio_unitario.toFixed(2)}</td>
-                        <td className="py-2 text-right font-semibold text-gray-800">${item.subtotal.toFixed(2)}</td>
+                        <td style={{fontWeight:600}}>{item.nombre_producto}</td>
+                        <td style={{textAlign:'center',color:'var(--text-2)'}}>{item.cantidad}</td>
+                        <td style={{textAlign:'right',color:'var(--text-2)'}}>${item.precio_unitario.toFixed(2)}</td>
+                        <td style={{textAlign:'right',fontWeight:600}}>${item.subtotal.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -258,26 +233,27 @@ export default function Historial() {
               )}
             </div>
 
-            {/* Footer: total + botón ticket */}
-            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+            {/* Footer */}
+            <div style={{padding:'1rem 1.5rem',borderTop:'1px solid var(--border)',
+              display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div>
-                <p className="text-xs text-gray-400">Total</p>
-                <p className="text-2xl font-extrabold text-gray-800">${ventaDetalle.total.toFixed(2)}</p>
-                <p className="text-xs text-green-600 font-semibold">
+                <p style={{fontSize:11,color:'var(--text-3)'}}>Total</p>
+                <p style={{fontFamily:'DM Serif Display,serif',fontSize:'1.75rem',letterSpacing:'-0.03em',color:'var(--text)'}}>
+                  ${ventaDetalle.total.toFixed(2)}
+                </p>
+                <p style={{fontSize:12,color:'var(--green)',fontWeight:600}}>
                   Ganancia: ${(ventaDetalle.total - ventaDetalle.costo_total).toFixed(2)}
                 </p>
               </div>
-              <button
-                onClick={() => descargarTicket(ventaDetalle)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors">
-                <FileText size={16} />
+              <button onClick={() => descargarTicket(ventaDetalle)} className="btn btn-accent"
+                style={{gap:8}}>
+                <FileText size={15} />
                 Ticket PDF
               </button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   )
 }

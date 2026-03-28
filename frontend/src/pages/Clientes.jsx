@@ -22,66 +22,52 @@ export default function Clientes() {
   const isAdmin = usuario?.rol === 'ADMIN'
 
   const cargar = () => clienteService.listar().then(r => {
-    setClientes(r.data)
-    setFiltrados(r.data)
+    setClientes(r.data); setFiltrados(r.data)
   })
   useEffect(() => { cargar() }, [])
 
-  // Filtrar por búsqueda
   useEffect(() => {
-    if (!busqueda.trim()) {
-      setFiltrados(clientes)
-    } else {
-      const b = busqueda.toLowerCase()
-      setFiltrados(clientes.filter(c =>
-        c.nombre.toLowerCase().includes(b) ||
-        c.telefono?.toLowerCase().includes(b)
-      ))
-    }
+    if (!busqueda.trim()) { setFiltrados(clientes); return }
+    const b = busqueda.toLowerCase()
+    setFiltrados(clientes.filter(c =>
+      c.nombre.toLowerCase().includes(b) || c.telefono?.toLowerCase().includes(b)
+    ))
   }, [busqueda, clientes])
 
   const crearCliente = async (e) => {
     e.preventDefault()
     if (!nuevoNombre.trim()) { toast.error('El nombre es obligatorio'); return }
-    const nombreLower = nuevoNombre.trim().toLowerCase()
-    if (clientes.find(c => c.nombre.toLowerCase() === nombreLower)) {
+    if (clientes.find(c => c.nombre.toLowerCase() === nuevoNombre.trim().toLowerCase())) {
       toast.error('Ya existe un cliente con ese nombre'); return
     }
     if (nuevoTel.trim() && clientes.find(c => c.telefono === nuevoTel.trim())) {
-      toast.error('Ya existe un cliente con ese telefono'); return
+      toast.error('Ya existe un cliente con ese teléfono'); return
     }
     try {
       await clienteService.crear({ nombre: nuevoNombre.trim(), telefono: nuevoTel.trim() })
       toast.success('Cliente registrado')
-      setNuevoNombre(''); setNuevoTel(''); setShowForm(false)
-      cargar()
+      setNuevoNombre(''); setNuevoTel(''); setShowForm(false); cargar()
     } catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
   const editarCliente = async () => {
     if (!editNombre.trim()) { toast.error('El nombre es obligatorio'); return }
-    const nombreLower = editNombre.trim().toLowerCase()
-    const duplicado = clientes.find(c => c.nombre.toLowerCase() === nombreLower && c.id !== modalEditar.id)
-    if (duplicado) { toast.error('Ya existe un cliente con ese nombre'); return }
+    if (clientes.find(c => c.nombre.toLowerCase() === editNombre.trim().toLowerCase() && c.id !== modalEditar.id)) {
+      toast.error('Ya existe un cliente con ese nombre'); return
+    }
     try {
       await clienteService.actualizar(modalEditar.id, { nombre: editNombre.trim(), telefono: editTel.trim() })
-      toast.success('Cliente actualizado')
-      setModalEditar(null)
-      cargar()
+      toast.success('Cliente actualizado'); setModalEditar(null); cargar()
     } catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
   const eliminarCliente = async (cliente) => {
     if (cliente.deuda_total > 0) {
-      toast.error(`${cliente.nombre} tiene deuda pendiente de $${cliente.deuda_total.toFixed(2)}`)
-      return
+      toast.error(`${cliente.nombre} tiene deuda de $${cliente.deuda_total.toFixed(2)}`); return
     }
     if (!confirm(`¿Eliminar a ${cliente.nombre}?`)) return
-    try {
-      await clienteService.eliminar(cliente.id)
-      toast.success('Cliente eliminado')
-      cargar()
-    } catch (err) { toast.error(err.response?.data?.detail || 'Error') }
+    try { await clienteService.eliminar(cliente.id); toast.success('Eliminado'); cargar() }
+    catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
   const verMovimientos = async (id) => {
@@ -98,12 +84,8 @@ export default function Clientes() {
       toast.error(`El monto no puede superar la deuda ($${modalAbono.deuda_total.toFixed(2)})`); return
     }
     try {
-      await clienteService.registrarMovimiento(modalAbono.id, {
-        tipo: 'ABONO', monto, detalle: 'Abono en efectivo'
-      })
-      toast.success('Abono registrado')
-      setModalAbono(null); setMontoAbono('')
-      cargar()
+      await clienteService.registrarMovimiento(modalAbono.id, { tipo: 'ABONO', monto, detalle: 'Abono en efectivo' })
+      toast.success('Abono registrado'); setModalAbono(null); setMontoAbono(''); cargar()
     } catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
@@ -111,36 +93,38 @@ export default function Clientes() {
   const conDeuda = clientes.filter(c => c.deuda_total > 0).length
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
+    <div className="page-wrap">
+
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="page-header">
         <div>
-          <h1 className="text-xl md:text-2xl font-extrabold text-gray-800">Cuentas Corrientes</h1>
-          <p className="text-sm text-gray-500">
+          <h1 className="page-title">Cuentas Corrientes</h1>
+          <p className="page-sub">
             {conDeuda > 0
-              ? `${conDeuda} cliente${conDeuda > 1 ? 's' : ''} con deuda — Total: $${totalDeuda.toFixed(2)}`
-              : `${clientes.length} clientes registrados`
-            }
+              ? `${conDeuda} cliente${conDeuda > 1 ? 's' : ''} con deuda · Total $${totalDeuda.toFixed(2)}`
+              : `${clientes.length} clientes registrados`}
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2 text-sm px-3 md:px-4">
-          <Plus size={18} /> <span className="hidden sm:inline">Nuevo cliente</span><span className="sm:hidden">Nuevo</span>
+        <button onClick={() => setShowForm(!showForm)} className="btn btn-primary">
+          <Plus size={16} />
+          <span className="hidden sm:inline">Nuevo cliente</span>
+          <span className="sm:hidden">Nuevo</span>
         </button>
       </div>
 
       {/* Buscador */}
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-        <input className="input pl-9" placeholder="Buscar por nombre o teléfono..."
+      <div className="search-wrap" style={{marginBottom:'1rem'}}>
+        <Search size={15} className="search-icon" />
+        <input className="input" placeholder="Buscar por nombre o teléfono..."
           value={busqueda} onChange={e => setBusqueda(e.target.value)} />
       </div>
 
-      {/* Formulario nuevo cliente */}
+      {/* Form nuevo cliente */}
       {showForm && (
-        <div className="card">
-          <form onSubmit={crearCliente} className="space-y-3">
-            <p className="font-semibold text-gray-700">Nuevo cliente</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="card" style={{marginBottom:'1rem'}}>
+          <form onSubmit={crearCliente} style={{display:'flex',flexDirection:'column',gap:12}}>
+            <p style={{fontWeight:700,fontSize:15,color:'var(--text)'}}>Nuevo cliente</p>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div>
                 <label className="label">Nombre *</label>
                 <input className="input" value={nuevoNombre}
@@ -152,51 +136,51 @@ export default function Clientes() {
                   onChange={e => setNuevoTel(e.target.value)} placeholder="Opcional" />
               </div>
             </div>
-            <div className="flex gap-2">
-              <button type="submit" className="btn-primary flex-1">Guardar</button>
-              <button type="button" onClick={() => setShowForm(false)} className="btn-secondary flex-1">Cancelar</button>
+            <div style={{display:'flex',gap:8}}>
+              <button type="submit" className="btn btn-primary" style={{flex:1,justifyContent:'center'}}>Guardar</button>
+              <button type="button" onClick={() => setShowForm(false)} className="btn btn-ghost" style={{flex:1,justifyContent:'center'}}>Cancelar</button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Lista de clientes */}
+      {/* Lista */}
       {filtrados.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
-          <p className="text-lg font-semibold">
-            {busqueda ? 'No se encontraron clientes' : 'No hay clientes registrados'}
-          </p>
-          {!busqueda && <p className="text-sm mt-1">Creá el primer cliente con el botón de arriba</p>}
+        <div className="empty-state">
+          <p>{busqueda ? 'Sin resultados' : 'No hay clientes registrados'}</p>
+          <p>{!busqueda && 'Creá el primero con el botón de arriba'}</p>
         </div>
       ) : (
-        <div className="space-y-2">
+        <div style={{display:'flex',flexDirection:'column',gap:6}}>
           {filtrados.map(c => (
-            <div key={c.id} className="card p-0 overflow-hidden">
-              <div className="flex items-center gap-3 p-4">
+            <div key={c.id} style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden'}}>
+              <div style={{display:'flex',alignItems:'center',gap:12,padding:'1rem'}}>
+
                 {/* Avatar */}
-                <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center font-bold text-blue-700 flex-shrink-0">
-                  {c.nombre[0].toUpperCase()}
-                </div>
+                <div className="avatar">{c.nombre[0].toUpperCase()}</div>
 
                 {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-gray-800 truncate">{c.nombre}</p>
-                  {c.telefono && <p className="text-xs text-gray-400">{c.telefono}</p>}
+                <div style={{flex:1,minWidth:0}}>
+                  <p style={{fontWeight:700,fontSize:15,marginBottom:1}}>{c.nombre}</p>
+                  {c.telefono && <p style={{fontSize:12,color:'var(--text-3)'}}>{c.telefono}</p>}
                 </div>
 
                 {/* Deuda */}
-                <div className="text-right flex-shrink-0">
-                  <p className={`font-extrabold text-lg ${c.deuda_total > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <div style={{textAlign:'right',flexShrink:0}}>
+                  <p style={{fontFamily:'DM Serif Display,serif',fontSize:'1.25rem',letterSpacing:'-0.02em',
+                    color: c.deuda_total > 0 ? 'var(--red)' : 'var(--green)'}}>
                     ${c.deuda_total.toFixed(2)}
                   </p>
-                  <p className="text-xs text-gray-400">{c.deuda_total > 0 ? 'debe' : 'al dia'}</p>
+                  <p style={{fontSize:11,color:'var(--text-3)'}}>
+                    {c.deuda_total > 0 ? 'debe' : 'al día'}
+                  </p>
                 </div>
 
                 {/* Acciones */}
-                <div className="flex items-center gap-1 flex-shrink-0 ml-1">
+                <div style={{display:'flex',alignItems:'center',gap:4,flexShrink:0}}>
                   {c.deuda_total > 0 && (
-                    <button onClick={() => setModalAbono(c)}
-                      className="bg-green-500 hover:bg-green-600 text-white text-xs font-bold px-2 py-1.5 rounded-lg flex items-center gap-1">
+                    <button onClick={() => setModalAbono(c)} className="btn btn-success"
+                      style={{padding:'6px 10px',gap:4,fontSize:12}}>
                       <DollarSign size={13} />
                       <span className="hidden sm:inline">Abonar</span>
                     </button>
@@ -204,39 +188,42 @@ export default function Clientes() {
                   {isAdmin && (
                     <>
                       <button onClick={() => { setModalEditar(c); setEditNombre(c.nombre); setEditTel(c.telefono || '') }}
-                        className="text-blue-400 hover:text-blue-600 p-1.5">
+                        style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:6}}
+                        onMouseEnter={e => e.currentTarget.style.color='var(--accent)'}
+                        onMouseLeave={e => e.currentTarget.style.color='var(--text-3)'}>
                         <Edit2 size={15} />
                       </button>
                       <button onClick={() => eliminarCliente(c)}
-                        className="text-red-400 hover:text-red-600 p-1.5">
+                        style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:6}}
+                        onMouseEnter={e => e.currentTarget.style.color='var(--red)'}
+                        onMouseLeave={e => e.currentTarget.style.color='var(--text-3)'}>
                         <Trash2 size={15} />
                       </button>
                     </>
                   )}
-                  <button onClick={() => verMovimientos(c.id)} className="text-gray-400 hover:text-gray-600 p-1.5">
+                  <button onClick={() => verMovimientos(c.id)}
+                    style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:6}}>
                     {expandido === c.id ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                   </button>
                 </div>
               </div>
 
-              {/* Historial de movimientos */}
+              {/* Historial */}
               {expandido === c.id && movimientos[c.id] && (
-                <div className="border-t border-gray-100 bg-gray-50 p-4">
-                  <p className="text-xs font-bold text-gray-500 mb-2 uppercase">Historial</p>
+                <div style={{borderTop:'1px solid var(--border)',background:'var(--surface)',padding:'1rem'}}>
+                  <p className="label" style={{marginBottom:8}}>Historial de movimientos</p>
                   {movimientos[c.id].length === 0 ? (
-                    <p className="text-sm text-gray-400">Sin movimientos</p>
+                    <p style={{fontSize:13,color:'var(--text-3)'}}>Sin movimientos</p>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div style={{display:'flex',flexDirection:'column',gap:6}}>
                       {movimientos[c.id].map(m => (
-                        <div key={m.id} className="flex items-center justify-between text-sm">
-                          <span className={`font-semibold text-xs px-2 py-0.5 rounded-full ${
-                            m.tipo === 'FIADO' ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
-                          }`}>
+                        <div key={m.id} style={{display:'flex',alignItems:'center',gap:10,fontSize:13}}>
+                          <span className={`badge ${m.tipo === 'FIADO' ? 'badge-red' : 'badge-green'}`}>
                             {m.tipo === 'FIADO' ? '↑ Fiado' : '↓ Abono'}
                           </span>
-                          <span className="text-gray-400 text-xs truncate mx-2">{m.detalle}</span>
-                          <span className="font-bold flex-shrink-0">${m.monto.toFixed(2)}</span>
-                          <span className="text-gray-400 text-xs ml-2 flex-shrink-0">
+                          <span style={{flex:1,color:'var(--text-2)',fontSize:12,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{m.detalle}</span>
+                          <span style={{fontWeight:700,flexShrink:0}}>${m.monto.toFixed(2)}</span>
+                          <span style={{color:'var(--text-3)',fontSize:11,flexShrink:0}}>
                             {new Date(m.fecha).toLocaleDateString('es-AR')}
                           </span>
                         </div>
@@ -250,28 +237,26 @@ export default function Clientes() {
         </div>
       )}
 
-      {/* Modal editar cliente */}
+      {/* Modal editar */}
       {modalEditar && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg">Editar cliente</h2>
-              <button onClick={() => setModalEditar(null)}><X size={20} className="text-gray-400" /></button>
+        <div className="modal-backdrop" onClick={() => setModalEditar(null)}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Editar cliente</span>
+              <button className="modal-close" onClick={() => setModalEditar(null)}><X size={15} /></button>
             </div>
-            <div className="space-y-3">
+            <div style={{padding:'1.25rem 1.5rem',display:'flex',flexDirection:'column',gap:12}}>
               <div>
                 <label className="label">Nombre *</label>
-                <input className="input" value={editNombre}
-                  onChange={e => setEditNombre(e.target.value)} required />
+                <input className="input" value={editNombre} onChange={e => setEditNombre(e.target.value)} required />
               </div>
               <div>
                 <label className="label">Teléfono</label>
-                <input className="input" value={editTel}
-                  onChange={e => setEditTel(e.target.value)} placeholder="Opcional" />
+                <input className="input" value={editTel} onChange={e => setEditTel(e.target.value)} placeholder="Opcional" />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button onClick={() => setModalEditar(null)} className="btn-secondary flex-1">Cancelar</button>
-                <button onClick={editarCliente} className="btn-primary flex-1">Guardar</button>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={() => setModalEditar(null)} className="btn btn-ghost" style={{flex:1,justifyContent:'center'}}>Cancelar</button>
+                <button onClick={editarCliente} className="btn btn-primary" style={{flex:1,justifyContent:'center'}}>Guardar</button>
               </div>
             </div>
           </div>
@@ -280,23 +265,32 @@ export default function Clientes() {
 
       {/* Modal abono */}
       {modalAbono && (
-        <div className="fixed inset-0 bg-black/40 flex items-end md:items-center justify-center z-50">
-          <div className="bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="font-bold text-lg">Registrar abono</h2>
-              <button onClick={() => setModalAbono(null)}><X size={20} className="text-gray-400" /></button>
+        <div className="modal-backdrop" onClick={() => setModalAbono(null)}>
+          <div className="modal-panel" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Registrar abono</span>
+              <button className="modal-close" onClick={() => setModalAbono(null)}><X size={15} /></button>
             </div>
-            <p className="text-sm text-gray-600 mb-1">Cliente: <strong>{modalAbono.nombre}</strong></p>
-            <p className="text-sm text-red-600 mb-4">Deuda: <strong>${modalAbono.deuda_total.toFixed(2)}</strong></p>
-            <label className="label">Monto a abonar ($)</label>
-            <input type="number" step="0.01" min="0.01" className="input mb-4"
-              value={montoAbono}
-              onChange={e => { if (e.target.value === '' || parseFloat(e.target.value) >= 0) setMontoAbono(e.target.value) }}
-              onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
-              placeholder="0.00" autoFocus />
-            <div className="flex gap-3">
-              <button onClick={() => setModalAbono(null)} className="btn-secondary flex-1">Cancelar</button>
-              <button onClick={registrarAbono} className="btn-success flex-1">Confirmar</button>
+            <div style={{padding:'1.25rem 1.5rem',display:'flex',flexDirection:'column',gap:12}}>
+              <div style={{background:'var(--surface)',borderRadius:10,padding:'12px 16px',border:'1px solid var(--border)'}}>
+                <p style={{fontSize:13,color:'var(--text-2)',marginBottom:2}}>Cliente</p>
+                <p style={{fontWeight:700,fontSize:15}}>{modalAbono.nombre}</p>
+                <p style={{fontSize:13,color:'var(--red)',fontWeight:600,marginTop:4}}>
+                  Deuda: ${modalAbono.deuda_total.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <label className="label">Monto a abonar ($)</label>
+                <input type="number" step="0.01" min="0.01" className="input"
+                  value={montoAbono}
+                  onChange={e => { if (e.target.value === '' || parseFloat(e.target.value) >= 0) setMontoAbono(e.target.value) }}
+                  onKeyDown={e => { if (e.key === '-') e.preventDefault() }}
+                  placeholder="0.00" autoFocus />
+              </div>
+              <div style={{display:'flex',gap:8}}>
+                <button onClick={() => setModalAbono(null)} className="btn btn-ghost" style={{flex:1,justifyContent:'center'}}>Cancelar</button>
+                <button onClick={registrarAbono} className="btn btn-success" style={{flex:1,justifyContent:'center'}}>Confirmar abono</button>
+              </div>
             </div>
           </div>
         </div>
