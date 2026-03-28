@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ventaService, negocioService } from '../services/api'
 import toast from 'react-hot-toast'
-import { FileText, X, User, CreditCard, Package } from 'lucide-react'
+import { FileText, X, User, Package } from 'lucide-react'
 import { generarTicketPDF } from '../utils/ticketPDF'
 
 export default function Historial() {
@@ -81,7 +81,12 @@ export default function Historial() {
         ))}
       </div>
 
-      {/* Tabla desktop */}
+      {/* 
+        Fix: no mezclar display en style inline con clases Tailwind md:hidden / hidden md:block
+        Usamos una sola clase por bloque sin style display, Tailwind maneja todo.
+      */}
+
+      {/* Tabla desktop — solo Tailwind controla display */}
       <div className="hidden md:block" style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden'}}>
         <table className="tabla">
           <thead>
@@ -132,14 +137,14 @@ export default function Historial() {
         </table>
       </div>
 
-      {/* Cards móvil */}
-      <div className="md:hidden" style={{display:'flex',flexDirection:'column',gap:8}}>
+      {/* Cards móvil — solo Tailwind controla display, sin style display */}
+      <div className="md:hidden" style={{flexDirection:'column',gap:8}}>
         {loading ? (
           <div className="empty-state"><span className="loader" /></div>
         ) : ventas.length === 0 ? (
-          <div className="empty-state"><p>Sin ventas en este período</p><p></p></div>
+          <div className="empty-state"><p>Sin ventas en este período</p></div>
         ) : ventas.map(v => (
-          <div key={v.id} className="card" style={{padding:'1rem',cursor:'pointer'}}
+          <div key={v.id} className="card" style={{padding:'1rem',cursor:'pointer',marginBottom:8}}
             onClick={() => abrirDetalle(v)}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
               <div style={{flex:1,minWidth:0}}>
@@ -187,7 +192,6 @@ export default function Historial() {
               <button className="modal-close" onClick={() => setVentaDetalle(null)}><X size={15} /></button>
             </div>
 
-            {/* Meta */}
             <div style={{padding:'0.75rem 1.5rem',background:'var(--surface)',borderBottom:'1px solid var(--border)',
               display:'flex',flexWrap:'wrap',gap:12}}>
               {ventaDetalle.cajero_username && (
@@ -205,7 +209,6 @@ export default function Historial() {
               <span className={metodoBadge(ventaDetalle.metodo_pago)}>{ventaDetalle.metodo_pago}</span>
             </div>
 
-            {/* Items */}
             <div style={{padding:'1rem 1.5rem',maxHeight:260,overflowY:'auto'}}>
               {loadingDetalle ? (
                 <div style={{textAlign:'center',padding:'1.5rem'}}><span className="loader" /></div>
@@ -233,12 +236,11 @@ export default function Historial() {
               )}
             </div>
 
-            {/* Footer */}
             <div style={{padding:'1rem 1.5rem',borderTop:'1px solid var(--border)',
               display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div>
                 <p style={{fontSize:11,color:'var(--text-3)'}}>Total</p>
-                <p style={{fontFamily:'DM Serif Display,serif',fontSize:'1.75rem',letterSpacing:'-0.03em',color:'var(--text)'}}>
+                <p style={{fontSize:'1.75rem',letterSpacing:'-0.03em',color:'var(--text)',fontWeight:700}}>
                   ${ventaDetalle.total.toFixed(2)}
                 </p>
                 <p style={{fontSize:12,color:'var(--green)',fontWeight:600}}>
