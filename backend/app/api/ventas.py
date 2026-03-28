@@ -59,7 +59,6 @@ def registrar_venta(
         )
         items_db.append(item_db)
 
-        # Reducir stock
         if item.producto_id:
             producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
             if producto:
@@ -80,7 +79,6 @@ def registrar_venta(
         item_db.venta_id = venta.id
         db.add(item_db)
 
-    # Si es fiado, registrar en cuenta corriente
     if data.metodo_pago == "Fiado" and data.cliente_id:
         cliente = db.query(Cliente).filter(Cliente.id == data.cliente_id).first()
         if cliente:
@@ -95,7 +93,6 @@ def registrar_venta(
 
     db.commit()
 
-    # Recargar con relaciones para serializar cajero e items
     venta = db.query(Venta).options(
         joinedload(Venta.cajero),
         joinedload(Venta.items)
@@ -106,7 +103,7 @@ def registrar_venta(
 
 @router.get("/")
 def listar_ventas(
-    periodo: Optional[str] = Query("hoy"),  # hoy | semana | mes | todo
+    periodo: Optional[str] = Query("hoy"),
     usuario=Depends(get_usuario_actual),
     db: Session = Depends(get_db)
 ):
@@ -125,6 +122,30 @@ def listar_ventas(
 
     ventas = q.order_by(Venta.fecha.desc()).limit(200).all()
     return [venta_to_out(v) for v in ventas]
+
+
+@router.get("/{venta_id}")
+def obtener_venta(
+    venta_id: int,
+    usuario=Depends(get_usuario_actual),
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).options(
+        joinedload(Venta.cajero),
+        joinedload(Venta.items),
+        joinedload(Venta.cliente)
+    ).filter(
+        Venta.id == venta_id,
+        Venta.negocio_id == usuario.negocio_id  # seguridad multi-tenant
+    ).first()
+
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    result = venta_to_out(venta)
+    # Agregar nombre del cliente si aplica
+    result["cliente_nombre"] = venta.cliente.nombre if venta.cliente else None
+    return result
 
 
 @router.get("/dashboard")
