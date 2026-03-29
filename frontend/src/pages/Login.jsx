@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom';
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { authService, negocioService } from '../services/api'
@@ -182,8 +183,9 @@ export default function Login() {
               <Link to="/recuperar-password" className="login-link-recover">
                 ¿Olvidaste tu contraseña?
               </Link>
-              <Link to="/ayuda" className="login-link-small">
-                <HelpCircle size={12} /> Ayuda
+              {/* Lo que tenías antes seguro era un <span>, un <button> o un <a> vacío */}
+              <Link to="/ayuda" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">
+                Ayuda
               </Link>
             </div>
 
