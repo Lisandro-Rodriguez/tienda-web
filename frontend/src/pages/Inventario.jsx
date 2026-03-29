@@ -535,7 +535,7 @@ export default function Inventario() {
       </div>
 
       {/* Cards móvil */}
-      <div className="md:hidden space-y-4" style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div className="md:hidden" style={{gap:8}}>
         {loading ? (
           <div className="empty-state"><span className="loader" /></div>
         ) : productos.length === 0 ? (
