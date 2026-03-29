@@ -235,9 +235,9 @@ function ItemAyuda({ item, accentColor }) {
 
           {/* GIFs */}
           {(item.gifDesktop || item.gifMovil) && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: '1rem' }}>
-              <GifPlaceholder src={item.gifDesktop} tipo="desktop" />
-              <GifPlaceholder src={item.gifMovil} tipo="movil" />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '1.5rem' }}>
+              {item.gifDesktop && <GifPlaceholder src={item.gifDesktop} tipo="desktop" />}
+              {item.gifMovil && <GifPlaceholder src={item.gifMovil} tipo="movil" />}
             </div>
           )}
 
