@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import secrets
@@ -57,65 +56,81 @@ def me(usuario=Depends(get_usuario_actual)):
 # ─── Recuperación de contraseña ───────────────────────────────────────────────
 
 @router.post("/recuperar")
-def solicitar_recuperacion(
-    data: dict,
-    db: Session = Depends(get_db)
-):
-    """
-    Recibe { email, negocio_id } y envía un email con link de reset.
-    Si el email no existe, igual responde OK (para no exponer usuarios).
-    """
+def solicitar_recuperacion(data: dict, db: Session = Depends(get_db)):
     email = data.get("email", "").strip().lower()
     negocio_id = data.get("negocio_id")
 
     if not email or not negocio_id:
         raise HTTPException(status_code=400, detail="Email y negocio son requeridos")
 
-    # Buscar admin del negocio con ese email
+    # Verificar que el negocio existe
     negocio = db.query(Negocio).filter(
         Negocio.id == negocio_id,
         Negocio.activo == True
     ).first()
 
-    if negocio and negocio.email.lower() == email:
-        # Buscar admin del negocio
-        admin = db.query(Usuario).filter(
-            Usuario.negocio_id == negocio_id,
-            Usuario.rol == "ADMIN",
-            Usuario.activo == True
-        ).first()
+    if not negocio:
+        raise HTTPException(status_code=404, detail="Negocio no encontrado")
 
-        if admin:
-            # Invalidar tokens anteriores
-            db.query(TokenRecuperacion).filter(
-                TokenRecuperacion.usuario_id == admin.id,
-                TokenRecuperacion.usado == False
-            ).update({"usado": True})
+    # Verificar que el email coincide con el registrado
+    if not negocio.email or negocio.email.strip() == "":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este negocio no tiene un email registrado. Contactá a soporte: {EMAIL_SOPORTE}"
+        )
 
-            # Crear token nuevo
-            token_str = secrets.token_urlsafe(32)
-            token_rec = TokenRecuperacion(
-                usuario_id=admin.id,
-                token=token_str,
-                expira_en=datetime.utcnow() + timedelta(hours=2)
+    if negocio.email.strip().lower() != email:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El email ingresado no coincide con el registrado para este negocio. Contactá a soporte: {EMAIL_SOPORTE}"
+        )
+
+    # Email coincide — buscar admin
+    admin = db.query(Usuario).filter(
+        Usuario.negocio_id == negocio_id,
+        Usuario.rol == "ADMIN",
+        Usuario.activo == True
+    ).first()
+
+    if not admin:
+        raise HTTPException(status_code=400, detail="No se encontró un administrador para este negocio")
+
+    # Invalidar tokens anteriores
+    db.query(TokenRecuperacion).filter(
+        TokenRecuperacion.usuario_id == admin.id,
+        TokenRecuperacion.usado == False
+    ).update({"usado": True})
+
+    # Crear token nuevo
+    token_str = secrets.token_urlsafe(32)
+    token_rec = TokenRecuperacion(
+        usuario_id=admin.id,
+        token=token_str,
+        expira_en=datetime.utcnow() + timedelta(hours=2)
+    )
+    db.add(token_rec)
+    db.commit()
+
+    # Enviar email
+    if RESEND_API_KEY:
+        exito = _enviar_email_recuperacion(email, negocio.nombre, token_str)
+        if not exito:
+            raise HTTPException(
+                status_code=500,
+                detail=f"El email está registrado pero hubo un error al enviarlo. Contactá a soporte: {EMAIL_SOPORTE}"
             )
-            db.add(token_rec)
-            db.commit()
+    else:
+        # Sin API key configurada — informar claramente
+        raise HTTPException(
+            status_code=503,
+            detail=f"El envío de emails no está configurado aún. Contactá a soporte: {EMAIL_SOPORTE}"
+        )
 
-            # Enviar email con Resend
-            if RESEND_API_KEY:
-                _enviar_email_recuperacion(email, negocio.nombre, token_str)
-
-    # Siempre OK para no exponer si el email existe
-    return {"ok": True, "mensaje": "Si el email está registrado, recibirás un link en los próximos minutos."}
+    return {"ok": True, "mensaje": "Te enviamos un link de recuperación. Revisá tu bandeja de entrada y la carpeta de spam."}
 
 
 @router.post("/resetear")
-def resetear_password(
-    data: dict,
-    db: Session = Depends(get_db)
-):
-    """Recibe { token, password_nuevo } y cambia la contraseña."""
+def resetear_password(data: dict, db: Session = Depends(get_db)):
     token_str = data.get("token", "")
     password_nuevo = data.get("password_nuevo", "")
 
@@ -136,11 +151,8 @@ def resetear_password(
     if token_rec.expira_en < datetime.utcnow():
         raise HTTPException(status_code=400, detail="El link expiró. Solicitá uno nuevo.")
 
-    # Cambiar contraseña
     usuario = db.query(Usuario).filter(Usuario.id == token_rec.usuario_id).first()
     usuario.password_hash = hashear_password(password_nuevo)
-
-    # Marcar token como usado
     token_rec.usado = True
     db.commit()
 
@@ -149,7 +161,6 @@ def resetear_password(
 
 @router.get("/verificar-token/{token}")
 def verificar_token(token: str, db: Session = Depends(get_db)):
-    """Verifica si un token de recuperación es válido antes de mostrar el form."""
     token_rec = db.query(TokenRecuperacion).filter(
         TokenRecuperacion.token == token,
         TokenRecuperacion.usado == False
@@ -161,41 +172,27 @@ def verificar_token(token: str, db: Session = Depends(get_db)):
     return {"ok": True}
 
 
-def _enviar_email_recuperacion(email: str, negocio_nombre: str, token: str):
-    """Envía el email de recuperación usando la API de Resend."""
-    # En producción, FRONTEND_URL debe estar en las variables de entorno
+def _enviar_email_recuperacion(email: str, negocio_nombre: str, token: str) -> bool:
     frontend_url = getattr(settings, 'FRONTEND_URL', 'https://tienda-web-tawny.vercel.app')
     link = f"{frontend_url}/nueva-password?token={token}"
 
     html = f"""
-    <div style="font-family: DM Sans, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
-      <h2 style="font-size: 1.5rem; color: #111; margin-bottom: 8px;">Recuperar contraseña</h2>
+    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px;">
+      <h2 style="font-size: 1.4rem; color: #111; margin-bottom: 8px;">Recuperar contraseña</h2>
       <p style="color: #666; margin-bottom: 24px;">
         Recibimos una solicitud para restablecer la contraseña del negocio <strong>{negocio_nombre}</strong>.
       </p>
-      <a href="{link}" style="
-        display: inline-block;
-        background: #10b981;
-        color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        text-decoration: none;
-        font-weight: 600;
-        font-size: 0.9rem;
-        margin-bottom: 24px;
-      ">
+      <a href="{link}" style="display:inline-block;background:#10b981;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:0.9rem;margin-bottom:24px;">
         Restablecer contraseña
       </a>
-      <p style="color: #999; font-size: 0.8rem;">
-        Este link expira en 2 horas. Si no solicitaste este cambio, ignorá este email.
-      </p>
-      <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-      <p style="color: #bbb; font-size: 0.75rem;">Sistema Tienda — Municipalidad de Salta</p>
+      <p style="color:#999;font-size:0.8rem;">Este link expira en 2 horas. Si no solicitaste este cambio, ignorá este email.</p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+      <p style="color:#bbb;font-size:0.75rem;">Sistema Tienda — Municipalidad de Salta</p>
     </div>
     """
 
     try:
-        httpx.post(
+        r = httpx.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {RESEND_API_KEY}",
@@ -209,6 +206,7 @@ def _enviar_email_recuperacion(email: str, negocio_nombre: str, token: str):
             },
             timeout=10
         )
+        return r.status_code in (200, 201)
     except Exception as e:
         print(f"Error enviando email: {e}")
-        # No levantamos excepción para no exponer el error al usuario
+        return False
