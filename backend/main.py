@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.api import auth, negocios, productos, ventas, clientes, catalogo, stock
 
+
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
