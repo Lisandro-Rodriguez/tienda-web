@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ventaService, negocioService } from '../services/api'
 import toast from 'react-hot-toast'
-import { FileText, X, User, Package } from 'lucide-react'
+import { FileText, X, User, Package, Trash2 } from 'lucide-react'
 import { generarTicketPDF } from '../utils/ticketPDF'
 import { useAuthStore } from '../store/authStore'
 
@@ -142,23 +142,9 @@ export default function Historial() {
                 <td><span className={metodoBadge(v.metodo_pago)}>{v.metodo_pago}</span></td>
                 <td style={{fontWeight:700}}>${v.total.toFixed(2)}</td>
                 <td style={{color:'var(--green)',fontWeight:600}}>${(v.total - v.costo_total).toFixed(2)}</td>
-                <td>
-                  <div style={{display:'flex', gap:'12px', alignItems:'center'}}>
-                {usuario?.rol === 'ADMIN' && (
-                  <button onClick={() => handleAnularVenta(ventaDetalle.id)}
-                    style={{background:'rgba(239, 68, 68, 0.1)',color:'#ef4444',border:'none',padding:'0.6rem 1rem',borderRadius:'8px',fontWeight:600,cursor:'pointer',fontSize:'0.85rem',transition:'0.2s'}}
-                    onMouseEnter={e => e.currentTarget.style.background='rgba(239, 68, 68, 0.2)'}
-                    onMouseLeave={e => e.currentTarget.style.background='rgba(239, 68, 68, 0.1)'}
-                  >
-                    Anular venta
-                  </button>
-                )}
-                <button onClick={() => descargarTicket(ventaDetalle)} className="btn btn-accent"
-                  style={{gap:8}}>
-                  <FileText size={15} />
-                  Ticket PDF
-                </button>
-              </div>
+                <td style={{color:'var(--green)',fontWeight:600}}>${(v.total - v.costo_total).toFixed(2)}</td>
+                <td style={{textAlign:'right', paddingRight:'1.5rem'}}>
+                  <span style={{fontSize: 12, color: 'var(--accent)', fontWeight: 600}}>Ver detalle ➔</span>
                 </td>
               </tr>
             ))}
@@ -238,31 +224,30 @@ export default function Historial() {
               <span className={metodoBadge(ventaDetalle.metodo_pago)}>{ventaDetalle.metodo_pago}</span>
             </div>
 
-            <div style={{padding:'1rem 1.5rem',maxHeight:260,overflowY:'auto'}}>
-              {loadingDetalle ? (
-                <div style={{textAlign:'center',padding:'1.5rem'}}><span className="loader" /></div>
-              ) : (
-                <table className="tabla">
-                  <thead>
-                    <tr>
-                      <th>Producto</th>
-                      <th style={{textAlign:'center'}}>Cant.</th>
-                      <th style={{textAlign:'right'}}>Precio</th>
-                      <th style={{textAlign:'right'}}>Subtotal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ventaDetalle.items?.map((item, i) => (
-                      <tr key={i}>
-                        <td style={{fontWeight:600}}>{item.nombre_producto}</td>
-                        <td style={{textAlign:'center',color:'var(--text-2)'}}>{item.cantidad}</td>
-                        <td style={{textAlign:'right',color:'var(--text-2)'}}>${item.precio_unitario.toFixed(2)}</td>
-                        <td style={{textAlign:'right',fontWeight:600}}>${item.subtotal.toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+            <div style={{padding:'1rem 1.5rem',borderTop:'1px solid var(--border)',
+              display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <p style={{fontSize:11,color:'var(--text-3)'}}>Total</p>
+                <p style={{fontSize:'1.75rem',letterSpacing:'-0.03em',color:'var(--text)',fontWeight:700}}>
+                  ${ventaDetalle.total.toFixed(2)}
+                </p>
+                <p style={{fontSize:12,color:'var(--green)',fontWeight:600}}>
+                  Ganancia: ${(ventaDetalle.total - ventaDetalle.costo_total).toFixed(2)}
+                </p>
+              </div>
+              
+              {/* Botones agrupados a la derecha */}
+              <div style={{display:'flex', gap:10}}>
+                {usuario?.rol === 'ADMIN' && (
+                  <button onClick={() => handleAnularVenta(ventaDetalle.id)}
+                    style={{background:'rgba(239, 68, 68, 0.1)', color:'#ef4444', border:'none', padding:'0.6rem 1rem', borderRadius:8, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:6}}>
+                    <Trash2 size={16} /> Anular
+                  </button>
+                )}
+                <button onClick={() => descargarTicket(ventaDetalle)} className="btn btn-accent" style={{gap:8}}>
+                  <FileText size={16} /> Ticket PDF
+                </button>
+              </div>
             </div>
 
             <div style={{padding:'1rem 1.5rem',borderTop:'1px solid var(--border)',
