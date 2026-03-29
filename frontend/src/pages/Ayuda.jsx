@@ -170,8 +170,7 @@ function GifPlaceholder({ src, tipo }) {
       <div style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'rgba(255,255,255,0.3)' }}>
         {icono} {label}
       </div>
-      <img src={src} alt={`Demo ${label}`} style={{ width: '100%', display: 'block' }}
-        onError={() => setError(true)} />
+      <img src={src} alt={`Demo ${label}`} style={{ width: '100%', height: 'auto', display: 'block' }} onError={() => setError(true)} />
     </div>
   )
 }
@@ -266,9 +265,18 @@ export default function Ayuda() {
 
   return (
     <>
-      <style>{`
+     <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600&display=swap');
-        .ayuda-root { min-height: 100%; background: #0f0f0f; font-family: 'DM Sans', sans-serif; }
+        
+        /* 1. Arreglo del fondo blanco: Forzamos min-height 100vh */
+        .ayuda-root { 
+          min-height: 100vh; 
+          background: #0f0f0f; 
+          font-family: 'DM Sans', sans-serif; 
+          display: flex;
+          flex-direction: column;
+        }
+        
         .ayuda-header { padding: 2rem 1.5rem 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
         @media (min-width: 768px) { .ayuda-header { padding: 2.5rem 2.5rem 0; } }
         .ayuda-titulo { font-family: 'DM Serif Display', serif; font-size: 1.75rem; color: #f0f0f0; letter-spacing: -0.03em; margin: 0 0 0.35rem; }
@@ -284,8 +292,17 @@ export default function Ayuda() {
         }
         .ayuda-tab:hover { color: rgba(255,255,255,0.6); }
         .ayuda-tab.activo { color: #fff; border-bottom-color: #10b981; }
-        .ayuda-body { padding: 1.5rem; max-width: 720px; }
+        
+        /* 2. Arreglo del ancho del contenido: De 720px a 900px para que el GIF respire */
+        .ayuda-body { 
+          padding: 1.5rem; 
+          max-width: 900px; /* Aumentamos el ancho máximo */
+          width: 100%;
+          margin: 0 auto; /* Lo centramos en pantallas grandes */
+          flex: 1; /* Hace que el body ocupe el espacio restante */
+        }
         @media (min-width: 768px) { .ayuda-body { padding: 2rem 2.5rem; } }
+        
         .ayuda-seccion-titulo { font-family: 'DM Serif Display', serif; font-size: 1.25rem; color: #f0f0f0; margin: 0 0 0.35rem; letter-spacing: -0.02em; }
         .ayuda-seccion-sub { font-size: 0.75rem; color: rgba(255,255,255,0.3); margin: 0 0 1.25rem; }
         .ayuda-items { display: flex; flex-direction: column; gap: 8px; }
