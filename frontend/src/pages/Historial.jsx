@@ -3,6 +3,7 @@ import { ventaService, negocioService } from '../services/api'
 import toast from 'react-hot-toast'
 import { FileText, X, User, Package } from 'lucide-react'
 import { generarTicketPDF } from '../utils/ticketPDF'
+import { useAuthStore } from '../store/authStore'
 
 export default function Historial() {
   const [ventas, setVentas] = useState([])
@@ -12,6 +13,7 @@ export default function Historial() {
   const [ventaDetalle, setVentaDetalle] = useState(null)
   const [loadingDetalle, setLoadingDetalle] = useState(false)
   const ticketAbrirAutomatico = localStorage.getItem('ticket_abrir_automatico') === 'true'
+  const { usuario } = useAuthStore()
 
   useEffect(() => {
     negocioService.miNegocio().then(r => setNegocio(r.data)).catch(() => {})
@@ -45,6 +47,23 @@ export default function Historial() {
   const descargarTicket = (venta, e) => {
     e?.stopPropagation()
     generarTicketPDF({ venta, negocio, abrirAutomatico: ticketAbrirAutomatico })
+  }
+
+  const handleAnularVenta = async (id) => {
+    if (!window.confirm('¿Estás seguro de anular esta venta? Se devolverá el stock y se borrará del registro.')) return
+    
+    try {
+      await ventaService.anular(id)
+      toast.success('Venta anulada correctamente')
+      setVentaDetalle(null) // Cerramos el modal
+      // Recargamos el historial
+      setLoading(true)
+      ventaService.listar(periodo)
+        .then(r => setVentas(r.data))
+        .finally(() => setLoading(false))
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Error al anular la venta')
+    }
   }
 
   const metodoBadge = (metodo) => {
@@ -124,12 +143,22 @@ export default function Historial() {
                 <td style={{fontWeight:700}}>${v.total.toFixed(2)}</td>
                 <td style={{color:'var(--green)',fontWeight:600}}>${(v.total - v.costo_total).toFixed(2)}</td>
                 <td>
-                  <button onClick={(e) => descargarTicket(v, e)}
-                    style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-3)',padding:4}}
-                    onMouseEnter={e => e.currentTarget.style.color='var(--accent)'}
-                    onMouseLeave={e => e.currentTarget.style.color='var(--text-3)'}>
-                    <FileText size={15} />
+                  <div style={{display:'flex', gap:'12px', alignItems:'center'}}>
+                {usuario?.rol === 'ADMIN' && (
+                  <button onClick={() => handleAnularVenta(ventaDetalle.id)}
+                    style={{background:'rgba(239, 68, 68, 0.1)',color:'#ef4444',border:'none',padding:'0.6rem 1rem',borderRadius:'8px',fontWeight:600,cursor:'pointer',fontSize:'0.85rem',transition:'0.2s'}}
+                    onMouseEnter={e => e.currentTarget.style.background='rgba(239, 68, 68, 0.2)'}
+                    onMouseLeave={e => e.currentTarget.style.background='rgba(239, 68, 68, 0.1)'}
+                  >
+                    Anular venta
                   </button>
+                )}
+                <button onClick={() => descargarTicket(ventaDetalle)} className="btn btn-accent"
+                  style={{gap:8}}>
+                  <FileText size={15} />
+                  Ticket PDF
+                </button>
+              </div>
                 </td>
               </tr>
             ))}

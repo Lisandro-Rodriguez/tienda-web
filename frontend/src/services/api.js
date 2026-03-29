@@ -59,6 +59,7 @@ export const ventaService = {
   registrar: (data) => api.post('/ventas/', data),
   listar: (periodo) => api.get('/ventas/', { params: { periodo } }),
   obtener: (id) => api.get(`/ventas/${id}`),
+  anular: (id) => api.delete(`/ventas/${id}`),
   dashboard: () => api.get('/ventas/dashboard'),
   cerrarCaja: (fondo_inicial) => api.post('/ventas/cierre', { fondo_inicial }),
   historialCierres: () => api.get('/ventas/cierres'),

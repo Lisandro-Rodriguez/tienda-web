@@ -211,6 +211,52 @@ def historial_cierres(usuario=Depends(get_usuario_actual), db: Session = Depends
     ).order_by(CierreCaja.fecha.desc()).limit(50).all()
 
 
+@router.delete("/{id}")
+def anular_venta(
+    id: int,
+    db: Session = Depends(get_db),
+    usuario=Depends(get_usuario_actual)
+):
+    # 1. Verificar que sea ADMIN
+    if usuario.rol != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo los administradores pueden anular ventas")
+
+    # 2. Buscar la venta
+    venta = db.query(Venta).filter(Venta.id == id, Venta.negocio_id == usuario.negocio_id).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    # 3. Buscar los items y devolver el stock
+    items = db.query(ItemVenta).filter(ItemVenta.venta_id == id).all()
+    for item in items:
+        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
+        if producto:
+            producto.stock += item.cantidad
+
+    # 4. Si fue fiado, restarle la deuda al cliente y registrar el movimiento
+    if venta.metodo_pago == "Fiado" and venta.cliente_id:
+        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
+        if cliente:
+            cliente.deuda_total -= venta.total
+            mov = MovimientoCliente(
+                cliente_id=cliente.id,
+                tipo="ABONO", # Lo marcamos como abono para compensar la deuda
+                monto=venta.total,
+                detalle=f"Anulación de venta #{venta.id}",
+                fecha=date.today()
+            )
+            db.add(mov)
+
+    # 5. Borrar items y la venta
+    for item in items:
+        db.delete(item)
+    db.delete(venta)
+
+    db.commit()
+
+    return {"ok": True, "mensaje": "Venta anulada y stock devuelto correctamente"}
+
+
 # ── Al final, la ruta con parámetro dinámico ──────────────────────────────────
 
 @router.get("/{venta_id}")
