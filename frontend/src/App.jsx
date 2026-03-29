@@ -38,6 +38,7 @@ export default function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/recuperar-password" element={<RecuperarPassword />} />
         <Route path="/nueva-password" element={<NuevaPassword />} />
+        <Route path="/ayuda" element={<Ayuda />} />
 
         {/* Rutas protegidas */}
         <Route path="/" element={
@@ -54,7 +55,7 @@ export default function App() {
           <Route path="configuracion" element={
             <ProtectedRoute adminOnly><Configuracion /></ProtectedRoute>
           } />
-          <Route path="ayuda" element={<Ayuda />} />
+          
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

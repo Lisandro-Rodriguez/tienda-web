@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import secrets
 import httpx
 
@@ -106,7 +106,7 @@ def solicitar_recuperacion(data: dict, db: Session = Depends(get_db)):
     token_rec = TokenRecuperacion(
         usuario_id=admin.id,
         token=token_str,
-        expira_en=datetime.utcnow() + timedelta(hours=2)
+        expira_en=datetime.now(timezone.utc) + timedelta(hours=24)
     )
     db.add(token_rec)
     db.commit()
@@ -148,7 +148,7 @@ def resetear_password(data: dict, db: Session = Depends(get_db)):
     if not token_rec:
         raise HTTPException(status_code=400, detail="El link es inválido o ya fue usado")
 
-    if token_rec.expira_en < datetime.utcnow():
+    if token_rec.expira_en.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="El link expiró. Solicitá uno nuevo.")
 
     usuario = db.query(Usuario).filter(Usuario.id == token_rec.usuario_id).first()
@@ -166,7 +166,7 @@ def verificar_token(token: str, db: Session = Depends(get_db)):
         TokenRecuperacion.usado == False
     ).first()
 
-    if not token_rec or token_rec.expira_en < datetime.utcnow():
+    if not token_rec or token_rec.expira_en.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="El link es inválido o expiró")
 
     return {"ok": True}
