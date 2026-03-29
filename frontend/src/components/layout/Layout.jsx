@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useState } from 'react'
 import {
   LayoutDashboard, Package, ShoppingCart, Users,
-  ClipboardList, Settings, LogOut, Store, Menu, X
+  ClipboardList, Settings, LogOut, Store, Menu, X, HelpCircle
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -14,6 +14,16 @@ const NAV_ITEMS = [
   { to: '/clientes',      icon: Users,           label: 'Fiado',      always: true },
   { to: '/historial',     icon: ClipboardList,   label: 'Historial',  always: true },
   { to: '/configuracion', icon: Settings,        label: 'Config',     adminOnly: true },
+  { to: '/ayuda',         icon: HelpCircle,      label: 'Ayuda',      always: true },
+]
+
+// Bottom nav muestra máx 5 items — priorizamos los más usados, Ayuda va en el menú hamburguesa
+const BOTTOM_NAV_ITEMS = [
+  { to: '/ventas',     icon: ShoppingCart,  label: 'Caja'      },
+  { to: '/inventario', icon: Package,       label: 'Inventario' },
+  { to: '/clientes',   icon: Users,         label: 'Fiado'     },
+  { to: '/historial',  icon: ClipboardList, label: 'Historial' },
+  { to: '/ayuda',      icon: HelpCircle,    label: 'Ayuda'     },
 ]
 
 export default function Layout() {
@@ -41,8 +51,9 @@ export default function Layout() {
             </div>
           </div>
         </div>
+
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {itemsVisibles.map(item => (
+          {itemsVisibles.filter(i => i.to !== '/ayuda').map(item => (
             <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'}
               className={({ isActive }) => clsx(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150',
@@ -52,8 +63,17 @@ export default function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="px-3 py-4 border-t border-white/10">
-          <span className={clsx('text-xs font-bold px-2 py-0.5 rounded-full mb-3 inline-block',
+
+        {/* Ayuda + logout al fondo */}
+        <div className="px-3 py-4 border-t border-white/10 space-y-1">
+          <NavLink to="/ayuda"
+            className={({ isActive }) => clsx(
+              'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all duration-150',
+              isActive ? 'bg-blue-500 text-white shadow-md' : 'text-blue-100 hover:bg-white/10'
+            )}>
+            <HelpCircle size={18} /> Ayuda
+          </NavLink>
+          <span className={clsx('text-xs font-bold px-2 py-0.5 rounded-full mt-2 inline-block',
             isAdmin ? 'bg-blue-400/30 text-blue-200' : 'bg-white/10 text-blue-300')}>
             {usuario?.rol}
           </span>
@@ -108,8 +128,22 @@ export default function Layout() {
         {/* BOTTOM NAV MÓVIL */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
           <div className="flex">
-            {itemsVisibles.slice(0, 5).map(item => (
-              <NavLink key={item.to} to={item.to} end={item.to === '/dashboard'}
+            {/* Admin ve Dashboard en lugar de Ayuda en el bottom nav */}
+            {isAdmin && (
+              <NavLink to="/dashboard" end
+                className={({ isActive }) => clsx(
+                  'flex-1 flex flex-col items-center justify-center py-2 transition-colors',
+                  isActive ? 'text-blue-600' : 'text-gray-400'
+                )}>
+                <LayoutDashboard size={22} />
+                <span className="mt-0.5 text-[10px] font-semibold">Dashboard</span>
+              </NavLink>
+            )}
+            {BOTTOM_NAV_ITEMS.filter(i =>
+              // Si es admin, omitir Ayuda del bottom nav (ya tiene Dashboard que ocupa el 5to slot)
+              isAdmin ? i.to !== '/ayuda' : true
+            ).map(item => (
+              <NavLink key={item.to} to={item.to}
                 className={({ isActive }) => clsx(
                   'flex-1 flex flex-col items-center justify-center py-2 transition-colors',
                   isActive ? 'text-blue-600' : 'text-gray-400'
