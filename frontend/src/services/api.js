@@ -5,14 +5,12 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' }
 })
 
-// Inyectar token en cada request
 api.interceptors.request.use(config => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// Redirigir al login si el token expiró
 api.interceptors.response.use(
   res => res,
   err => {
@@ -25,8 +23,6 @@ api.interceptors.response.use(
 )
 
 export default api
-
-// ─── Servicios ────────────────────────────────────────────────────────────────
 
 export const authService = {
   login: (username, password, negocio_id) =>
@@ -60,6 +56,7 @@ export const ventaService = {
   listar: (periodo) => api.get('/ventas/', { params: { periodo } }),
   obtener: (id) => api.get(`/ventas/${id}`),
   anular: (id) => api.delete(`/ventas/${id}`),
+  listarAnuladas: () => api.get('/ventas/anuladas'),
   dashboard: () => api.get('/ventas/dashboard'),
   cerrarCaja: (fondo_inicial) => api.post('/ventas/cierre', { fondo_inicial }),
   historialCierres: () => api.get('/ventas/cierres'),

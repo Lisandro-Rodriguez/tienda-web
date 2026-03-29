@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, cast, Date
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from app.core.database import get_db
 from app.core.security import get_usuario_actual, require_admin
 from app.models.models import Venta, ItemVenta, Producto, Cliente, MovimientoCliente, CierreCaja
@@ -19,6 +19,9 @@ def venta_to_out(venta: Venta) -> dict:
         "metodo_pago": venta.metodo_pago,
         "fecha": venta.fecha,
         "cajero_username": venta.cajero.username if venta.cajero else None,
+        "anulada": venta.anulada,
+        "anulada_por": venta.anulada_por.username if venta.anulada_por else None,
+        "anulada_en": venta.anulada_en,
         "items": [
             {
                 "id": item.id,
@@ -30,6 +33,15 @@ def venta_to_out(venta: Venta) -> dict:
             for item in venta.items
         ],
     }
+
+
+def query_base(db, negocio_id):
+    """Query base con todas las relaciones cargadas."""
+    return db.query(Venta).options(
+        joinedload(Venta.cajero),
+        joinedload(Venta.items),
+        joinedload(Venta.anulada_por),
+    ).filter(Venta.negocio_id == negocio_id)
 
 
 @router.post("/")
@@ -68,7 +80,8 @@ def registrar_venta(
         cliente_id=data.cliente_id,
         total=round(total, 2),
         costo_total=round(costo_total, 2),
-        metodo_pago=data.metodo_pago
+        metodo_pago=data.metodo_pago,
+        anulada=False,
     )
     db.add(venta)
     db.flush()
@@ -81,21 +94,16 @@ def registrar_venta(
         cliente = db.query(Cliente).filter(Cliente.id == data.cliente_id).first()
         if cliente:
             cliente.deuda_total += round(total, 2)
-            mov = MovimientoCliente(
+            db.add(MovimientoCliente(
                 cliente_id=data.cliente_id,
                 tipo="FIADO",
                 monto=round(total, 2),
                 detalle=f"Venta #{venta.id}"
-            )
-            db.add(mov)
+            ))
 
     db.commit()
 
-    venta = db.query(Venta).options(
-        joinedload(Venta.cajero),
-        joinedload(Venta.items)
-    ).filter(Venta.id == venta.id).first()
-
+    venta = query_base(db, usuario.negocio_id).filter(Venta.id == venta.id).first()
     return venta_to_out(venta)
 
 
@@ -105,10 +113,8 @@ def listar_ventas(
     usuario=Depends(get_usuario_actual),
     db: Session = Depends(get_db)
 ):
-    q = db.query(Venta).options(
-        joinedload(Venta.cajero),
-        joinedload(Venta.items)
-    ).filter(Venta.negocio_id == usuario.negocio_id)
+    # Solo ventas activas (no anuladas)
+    q = query_base(db, usuario.negocio_id).filter(Venta.anulada == False)
 
     hoy = date.today()
     if periodo == "hoy":
@@ -118,8 +124,27 @@ def listar_ventas(
     elif periodo == "mes":
         q = q.filter(Venta.fecha >= hoy - timedelta(days=30))
 
-    ventas = q.order_by(Venta.fecha.desc()).limit(200).all()
-    return [venta_to_out(v) for v in ventas]
+    return [venta_to_out(v) for v in q.order_by(Venta.fecha.desc()).limit(200).all()]
+
+
+@router.get("/anuladas")
+def listar_anuladas(
+    usuario=Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    """Solo admins pueden ver el historial de ventas anuladas."""
+    ventas = query_base(db, usuario.negocio_id).options(
+        joinedload(Venta.cliente)
+    ).filter(
+        Venta.anulada == True
+    ).order_by(Venta.anulada_en.desc()).limit(200).all()
+
+    result = []
+    for v in ventas:
+        d = venta_to_out(v)
+        d["cliente_nombre"] = v.cliente.nombre if v.cliente else None
+        result.append(d)
+    return result
 
 
 @router.get("/dashboard")
@@ -127,20 +152,20 @@ def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)
     hoy = date.today()
     nid = usuario.negocio_id
 
-    hoy_stats = db.query(
-        func.coalesce(func.sum(Venta.total), 0),
-        func.coalesce(func.sum(Venta.costo_total), 0)
-    ).filter(Venta.negocio_id == nid, cast(Venta.fecha, Date) == hoy).first()
+    # Excluir ventas anuladas de todos los cálculos
+    def stats_query(filtro_fecha):
+        return db.query(
+            func.coalesce(func.sum(Venta.total), 0),
+            func.coalesce(func.sum(Venta.costo_total), 0)
+        ).filter(
+            Venta.negocio_id == nid,
+            Venta.anulada == False,
+            filtro_fecha
+        ).first()
 
-    semana_stats = db.query(
-        func.coalesce(func.sum(Venta.total), 0),
-        func.coalesce(func.sum(Venta.costo_total), 0)
-    ).filter(Venta.negocio_id == nid, Venta.fecha >= hoy - timedelta(days=7)).first()
-
-    mes_stats = db.query(
-        func.coalesce(func.sum(Venta.total), 0),
-        func.coalesce(func.sum(Venta.costo_total), 0)
-    ).filter(Venta.negocio_id == nid, Venta.fecha >= hoy - timedelta(days=30)).first()
+    hoy_stats    = stats_query(cast(Venta.fecha, Date) == hoy)
+    semana_stats = stats_query(Venta.fecha >= hoy - timedelta(days=7))
+    mes_stats    = stats_query(Venta.fecha >= hoy - timedelta(days=30))
 
     total_prod = db.query(func.count(Producto.id)).filter(
         Producto.negocio_id == nid, Producto.activo == True).scalar()
@@ -151,7 +176,8 @@ def dashboard(usuario=Depends(get_usuario_actual), db: Session = Depends(get_db)
     con_deuda = db.query(func.count(Cliente.id)).filter(
         Cliente.negocio_id == nid, Cliente.activo == True, Cliente.deuda_total > 0).scalar()
 
-    def calc(r): return {"ventas": round(float(r[0]), 2), "ganancia": round(float(r[0]) - float(r[1]), 2)}
+    def calc(r):
+        return {"ventas": round(float(r[0]), 2), "ganancia": round(float(r[0]) - float(r[1]), 2)}
 
     return {
         **{f"hoy_{k}": v for k, v in calc(hoy_stats).items()},
@@ -170,9 +196,11 @@ def cerrar_caja(
     usuario=Depends(get_usuario_actual),
     db: Session = Depends(get_db)
 ):
+    # Solo ventas activas en el cierre
     ventas_abiertas = db.query(Venta).filter(
         Venta.negocio_id == usuario.negocio_id,
-        Venta.estado_caja == "ABIERTA"
+        Venta.estado_caja == "ABIERTA",
+        Venta.anulada == False
     ).all()
 
     efectivo = sum(v.total for v in ventas_abiertas if v.metodo_pago == "Efectivo")
@@ -207,7 +235,7 @@ def historial_cierres(usuario=Depends(get_usuario_actual), db: Session = Depends
     ).order_by(CierreCaja.fecha.desc()).limit(50).all()
 
 
-# ── Anular venta — solo ADMIN ─────────────────────────────────────────────────
+# ── Anular venta — marca como anulada, NO borra ───────────────────────────────
 
 @router.delete("/{venta_id}")
 def anular_venta(
@@ -215,15 +243,16 @@ def anular_venta(
     usuario=Depends(require_admin),
     db: Session = Depends(get_db)
 ):
-    venta = db.query(Venta).options(
-        joinedload(Venta.items)
-    ).filter(
+    venta = db.query(Venta).options(joinedload(Venta.items)).filter(
         Venta.id == venta_id,
         Venta.negocio_id == usuario.negocio_id
     ).first()
 
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    if venta.anulada:
+        raise HTTPException(status_code=400, detail="Esta venta ya fue anulada")
 
     # Devolver stock
     for item in venta.items:
@@ -232,35 +261,31 @@ def anular_venta(
             if producto:
                 producto.stock += item.cantidad
 
-    # Si era fiado, reducir deuda del cliente
-    # Usamos max(0, ...) para evitar que quede negativo si el cliente ya abonó
+    # Si era fiado, reducir deuda (sin quedar negativo)
     if venta.metodo_pago == "Fiado" and venta.cliente_id:
         cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
         if cliente:
             deuda_anterior = cliente.deuda_total
             cliente.deuda_total = round(max(0, cliente.deuda_total - venta.total), 2)
             monto_revertido = round(deuda_anterior - cliente.deuda_total, 2)
-
-            # Solo registrar movimiento si había deuda que revertir
             if monto_revertido > 0:
-                mov = MovimientoCliente(
+                db.add(MovimientoCliente(
                     cliente_id=cliente.id,
                     tipo="ABONO",
                     monto=monto_revertido,
-                    detalle=f"Anulación venta #{venta.id}"
-                )
-                db.add(mov)
+                    detalle=f"Anulación venta #{venta.id} por {usuario.username}"
+                ))
 
-    # Eliminar items y venta
-    for item in venta.items:
-        db.delete(item)
-    db.delete(venta)
+    # Marcar como anulada — NO borrar
+    venta.anulada = True
+    venta.anulada_por_id = usuario.id
+    venta.anulada_en = datetime.now(timezone.utc)
+
     db.commit()
+    return {"ok": True, "mensaje": "Venta anulada correctamente"}
 
-    return {"ok": True, "mensaje": "Venta anulada y stock devuelto correctamente"}
 
-
-# ── Obtener venta por ID — al final para no interceptar rutas estáticas ───────
+# ── Obtener venta por ID ──────────────────────────────────────────────────────
 
 @router.get("/{venta_id}")
 def obtener_venta(
@@ -271,7 +296,8 @@ def obtener_venta(
     venta = db.query(Venta).options(
         joinedload(Venta.cajero),
         joinedload(Venta.items),
-        joinedload(Venta.cliente)
+        joinedload(Venta.cliente),
+        joinedload(Venta.anulada_por),
     ).filter(
         Venta.id == venta_id,
         Venta.negocio_id == usuario.negocio_id
