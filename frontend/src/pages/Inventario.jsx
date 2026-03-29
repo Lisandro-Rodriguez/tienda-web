@@ -469,7 +469,7 @@ export default function Inventario() {
       )}
 
       {/* Tabla desktop */}
-      <div className="hidden md:block" style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden'}}>
+      <div className="hidden md:block overflow-x-auto" style={{background:'#fff',border:'1px solid var(--border)',borderRadius:14,overflow:'hidden'}}>
         <table className="tabla">
           <thead>
             <tr>
@@ -535,7 +535,7 @@ export default function Inventario() {
       </div>
 
       {/* Cards móvil */}
-      <div className="md:hidden" style={{display:'flex',flexDirection:'column',gap:8}}>
+      <div className="md:hidden space-y-4" style={{display:'flex',flexDirection:'column',gap:8}}>
         {loading ? (
           <div className="empty-state"><span className="loader" /></div>
         ) : productos.length === 0 ? (
