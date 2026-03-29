@@ -4,16 +4,14 @@ from sqlalchemy import func, cast, Date
 from typing import Optional
 from datetime import date, timedelta
 from app.core.database import get_db
-from app.core.security import get_usuario_actual
-from app.models.models import Venta, ItemVenta, Producto, Cliente, MovimientoCliente
-from app.schemas.schemas import VentaCreate, VentaOut, CierreCreate, CierreOut
-from app.models.models import CierreCaja
+from app.core.security import get_usuario_actual, require_admin
+from app.models.models import Venta, ItemVenta, Producto, Cliente, MovimientoCliente, CierreCaja
+from app.schemas.schemas import VentaCreate, CierreCreate, CierreOut
 
 router = APIRouter(prefix="/api/ventas", tags=["ventas"])
 
 
 def venta_to_out(venta: Venta) -> dict:
-    """Serializa una Venta incluyendo el username del cajero."""
     return {
         "id": venta.id,
         "total": venta.total,
@@ -182,8 +180,6 @@ def cerrar_caja(
     fiadas   = sum(v.total for v in ventas_abiertas if v.metodo_pago == "Fiado")
     total    = sum(v.total for v in ventas_abiertas)
 
-    pagos_fiado = 0
-
     cierre = CierreCaja(
         negocio_id=usuario.negocio_id,
         cajero=usuario.username,
@@ -191,7 +187,7 @@ def cerrar_caja(
         ventas_efectivo=round(efectivo, 2),
         ventas_digital=round(digital, 2),
         ventas_fiadas=round(fiadas, 2),
-        pagos_fiado=round(pagos_fiado, 2),
+        pagos_fiado=0,
         total_facturado=round(total, 2)
     )
     db.add(cierre)
@@ -211,101 +207,60 @@ def historial_cierres(usuario=Depends(get_usuario_actual), db: Session = Depends
     ).order_by(CierreCaja.fecha.desc()).limit(50).all()
 
 
-@router.delete("/{id}")
-def anular_venta(
-    id: int,
-    db: Session = Depends(get_db),
-    usuario=Depends(get_usuario_actual)
-):
-    # 1. Verificar que sea ADMIN
-    if usuario.rol != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo los administradores pueden anular ventas")
+# ── Anular venta — solo ADMIN ─────────────────────────────────────────────────
 
-    # 2. Buscar la venta
-    venta = db.query(Venta).filter(Venta.id == id, Venta.negocio_id == usuario.negocio_id).first()
+@router.delete("/{venta_id}")
+def anular_venta(
+    venta_id: int,
+    usuario=Depends(require_admin),
+    db: Session = Depends(get_db)
+):
+    venta = db.query(Venta).options(
+        joinedload(Venta.items)
+    ).filter(
+        Venta.id == venta_id,
+        Venta.negocio_id == usuario.negocio_id
+    ).first()
+
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    # 3. Buscar los items y devolver el stock
-    items = db.query(ItemVenta).filter(ItemVenta.venta_id == id).all()
-    for item in items:
-        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
-        if producto:
-            producto.stock += item.cantidad
+    # Devolver stock
+    for item in venta.items:
+        if item.producto_id:
+            producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
+            if producto:
+                producto.stock += item.cantidad
 
-    # 4. Si fue fiado, restarle la deuda al cliente y registrar el movimiento
+    # Si era fiado, reducir deuda del cliente
+    # Usamos max(0, ...) para evitar que quede negativo si el cliente ya abonó
     if venta.metodo_pago == "Fiado" and venta.cliente_id:
         cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
         if cliente:
-            cliente.deuda_total -= venta.total
-            mov = MovimientoCliente(
-                cliente_id=cliente.id,
-                tipo="ABONO", # Lo marcamos como abono para compensar la deuda
-                monto=venta.total,
-                detalle=f"Anulación de venta #{venta.id}",
-                fecha=date.today()
-            )
-            db.add(mov)
+            deuda_anterior = cliente.deuda_total
+            cliente.deuda_total = round(max(0, cliente.deuda_total - venta.total), 2)
+            monto_revertido = round(deuda_anterior - cliente.deuda_total, 2)
 
-    # 5. Borrar items y la venta
-    for item in items:
+            # Solo registrar movimiento si había deuda que revertir
+            if monto_revertido > 0:
+                mov = MovimientoCliente(
+                    cliente_id=cliente.id,
+                    tipo="ABONO",
+                    monto=monto_revertido,
+                    detalle=f"Anulación venta #{venta.id}"
+                )
+                db.add(mov)
+
+    # Eliminar items y venta
+    for item in venta.items:
         db.delete(item)
     db.delete(venta)
-
     db.commit()
 
     return {"ok": True, "mensaje": "Venta anulada y stock devuelto correctamente"}
 
 
-# Insertar contextualmente en backend/app/api/ventas.py
-
-@router.delete("/{id}")
-def anular_venta(
-    id: int,
-    db: Session = Depends(get_db),
-    usuario=Depends(get_usuario_actual)
-):
-    # 1. Verificar que sea ADMIN
-    if usuario.rol != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo los administradores pueden anular ventas")
-
-    # 2. Buscar la venta contextualmente
-    venta = db.query(Venta).filter(Venta.id == id, Venta.negocio_id == usuario.negocio_id).first()
-    if not venta:
-        raise HTTPException(status_code=404, detail="Venta no encontrada")
-
-    # 3. Buscar los items y devolver el stock contextualmente
-    items = db.query(ItemVenta).filter(ItemVenta.venta_id == id).all()
-    for item in items:
-        producto = db.query(Producto).filter(Producto.id == item.producto_id).first()
-        if producto:
-            producto.stock += item.cantidad
-            
-    # 4. Si fue fiado, restarle la deuda al cliente contextualmente
-    if venta.metodo_pago == "Fiado" and venta.cliente_id:
-        cliente = db.query(Cliente).filter(Cliente.id == venta.cliente_id).first()
-        if cliente:
-            cliente.deuda_total -= venta.total
-            mov = MovimientoCliente(
-                cliente_id=cliente.id,
-                tipo="ABONO", # Lo marcamos como abono contextualmente
-                monto=venta.total,
-                detalle=f"Anulación de venta #{venta.id}",
-                fecha=date.today()
-            )
-            db.add(mov)
-
-    # 5. Borrar items y la venta
-    for item in items:
-        db.delete(item)
-    db.delete(venta)
-    
-    db.commit()
-    
-    return {"ok": True, "mensaje": "Venta anulada y stock devuelto correctamente"}
-
-
-# ── Al final, la ruta con parámetro dinámico ──────────────────────────────────
+# ── Obtener venta por ID — al final para no interceptar rutas estáticas ───────
 
 @router.get("/{venta_id}")
 def obtener_venta(

@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { BookOpen, Wrench, AlertCircle, ChevronDown, ChevronUp, Play, Monitor, Smartphone } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, Wrench, AlertCircle, ChevronDown, ChevronUp, Play, Monitor, Smartphone, ArrowLeft } from 'lucide-react'
 
 // ── Datos de contenido ────────────────────────────────────────────────────────
 
@@ -262,6 +263,7 @@ function ItemAyuda({ item, accentColor }) {
 
 export default function Ayuda() {
   const [seccionActiva, setSeccionActiva] = useState('primeros-pasos')
+  const navigate = useNavigate()
 
   return (
     <>
@@ -311,6 +313,19 @@ export default function Ayuda() {
       <div className="ayuda-root">
         {/* Header con tabs */}
         <div className="ayuda-header">
+          {/* Botón regreso — solo visible en móvil donde no hay sidebar */}
+          <button
+            onClick={() => navigate(-1)}
+            className="md:hidden"
+            style={{
+              display:'flex', alignItems:'center', gap:6,
+              background:'none', border:'none', cursor:'pointer',
+              color:'rgba(255,255,255,0.35)', fontSize:'0.78rem',
+              padding:'0 0 1rem', fontFamily:'DM Sans,sans-serif',
+            }}
+          >
+            <ArrowLeft size={14} /> Volver
+          </button>
           <h1 className="ayuda-titulo">Centro de Ayuda</h1>
           <p className="ayuda-sub">Todo lo que necesitás para usar el sistema</p>
           <div className="ayuda-tabs">
