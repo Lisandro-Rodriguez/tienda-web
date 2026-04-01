@@ -7,6 +7,9 @@ import { generarTicketPDF } from '../utils/ticketPDF'
 
 const METODOS = ['Efectivo', 'Tarjeta', 'Transferencia', 'Fiado']
 
+// Billetes rápidos en ARS — "Exacto" se calcula dinámicamente
+const BILLETES = [1000, 2000, 5000, 10000]
+
 export default function Ventas() {
   const [carrito, setCarrito] = useState([])
   const [codigo, setCodigo] = useState('')
@@ -123,7 +126,6 @@ export default function Ventas() {
               placeholder="Código de barras o nombre del producto..."
               autoComplete="off" />
 
-            {/* Sugerencias */}
             {mostrarSugerencias && sugerencias.length > 0 && (
               <div style={{position:'absolute',zIndex:9999,width:'100%',background:'#fff',
                 border:'1px solid var(--border)',borderRadius:12,boxShadow:'0 8px 24px rgba(0,0,0,0.1)',
@@ -150,21 +152,18 @@ export default function Ventas() {
                     </div>
                     <div style={{textAlign:'right',flexShrink:0,marginLeft:12}}>
                       <p style={{fontWeight:700,color:'var(--green)',fontSize:14}}>${p.precio_venta.toFixed(2)}</p>
-                      {p.stock <= 5 && <p style={{fontSize:11,color:'var(--red)'}}>⚠ Poco stock</p>}
+                      {p.stock <= 5 && <p style={{fontSize:11,color:'var(--red)'}}>⚠ poco stock</p>}
                     </div>
                   </button>
                 ))}
               </div>
             )}
           </div>
-
           <button type="button" onClick={() => setMostrarEscaner(true)}
             className="btn btn-ghost md:hidden" style={{padding:'0 12px',flexShrink:0}}>
             <Camera size={18} />
           </button>
-          <button type="submit" className="btn btn-primary" style={{flexShrink:0,padding:'0 18px',fontSize:20,fontWeight:300}}>
-            +
-          </button>
+          <button type="submit" className="btn btn-primary" style={{flexShrink:0,padding:'0 16px'}}>+</button>
         </form>
 
         {mostrarEscaner && (
@@ -239,7 +238,7 @@ export default function Ventas() {
         'fixed md:static inset-x-0 bottom-16 bg-white border-t z-30 p-4 space-y-3 transition-transform duration-300',
         mostrarResumen || (typeof window !== 'undefined' && window.innerWidth >= 768) ? 'translate-y-0' : 'translate-y-full',
         carrito.length === 0 ? 'hidden md:flex' : ''
-      ].join(' ')} style={{}}>
+      ].join(' ')}>
 
         {/* Total desktop */}
         <div className="hidden md:block" style={{background:'var(--navy)',borderRadius:14,padding:'1.25rem',textAlign:'center',color:'#fff'}}>
@@ -281,15 +280,52 @@ export default function Ventas() {
           </div>
         )}
 
-        {/* Efectivo */}
+        {/* Efectivo con billetes rápidos */}
         {metodo === 'Efectivo' && (
           <div>
             <label className="label">Paga con ($)</label>
+
+            {/* Billetes rápidos */}
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:5,marginBottom:8}}>
+              {/* Botón Exacto */}
+              <button
+                type="button"
+                onClick={() => setPagaCon(total.toFixed(2))}
+                style={{
+                  padding:'8px 4px',borderRadius:8,fontSize:11,fontWeight:700,
+                  cursor:'pointer',fontFamily:'DM Sans,sans-serif',
+                  background: parseFloat(pagaCon) === total ? 'var(--green)' : 'var(--surface)',
+                  color: parseFloat(pagaCon) === total ? '#fff' : 'var(--text-2)',
+                  border: `1px solid ${parseFloat(pagaCon) === total ? 'var(--green)' : 'var(--border)'}`,
+                  textAlign:'center',
+                }}>
+                Exacto
+              </button>
+              {/* Billetes */}
+              {BILLETES.filter(b => b >= total || b >= 1000).slice(0, 3).map(b => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setPagaCon(String(b))}
+                  style={{
+                    padding:'8px 4px',borderRadius:8,fontSize:11,fontWeight:700,
+                    cursor:'pointer',fontFamily:'DM Sans,sans-serif',
+                    background: parseFloat(pagaCon) === b ? 'var(--navy)' : 'var(--surface)',
+                    color: parseFloat(pagaCon) === b ? '#fff' : 'var(--text-2)',
+                    border: `1px solid ${parseFloat(pagaCon) === b ? 'var(--navy)' : 'var(--border)'}`,
+                    textAlign:'center',
+                  }}>
+                  ${(b/1000).toFixed(0)}k
+                </button>
+              ))}
+            </div>
+
+            {/* Input manual */}
             <input type="number" step="0.01" className="input" min="0"
               value={pagaCon}
               onChange={e => { if (e.target.value === '' || parseFloat(e.target.value) >= 0) setPagaCon(e.target.value) }}
               onKeyDown={e => { if (e.key === '-' || e.key === 'e' || e.key === 'E') e.preventDefault() }}
-              placeholder="0.00" />
+              placeholder="O escribí el monto..." />
             {pagaCon && (
               parseFloat(pagaCon) >= total
                 ? <p style={{fontSize:13,fontWeight:700,color:'var(--green)',marginTop:6}}>✓ Vuelto: ${vuelto.toFixed(2)}</p>

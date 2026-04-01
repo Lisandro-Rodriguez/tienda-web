@@ -2,8 +2,54 @@ import { useState, useEffect } from 'react'
 import { clienteService } from '../services/api'
 import { useAuthStore } from '../store/authStore'
 import toast from 'react-hot-toast'
-import { Plus, X, ChevronDown, ChevronUp, DollarSign, Edit2, Trash2, Search } from 'lucide-react'
+import { Plus, X, ChevronDown, ChevronUp, DollarSign, Edit2, Trash2, Search, MessageCircle } from 'lucide-react'
 
+// ── Botón WhatsApp ────────────────────────────────────────────────────────────
+function BtnWhatsApp({ cliente }) {
+  if (!cliente.telefono?.trim()) return null
+
+  // Normalizar número argentino: sacar espacios, guiones, paréntesis
+  // Si empieza con 0 → reemplazar por 54 (código Argentina)
+  // Si empieza con 15 → agregar 549 adelante
+  const normalizarTelefono = (tel) => {
+    let n = tel.replace(/[\s\-().+]/g, '')
+    if (n.startsWith('0')) n = '54' + n.slice(1)
+    else if (!n.startsWith('54')) n = '549' + n
+    return n
+  }
+
+  const numero = normalizarTelefono(cliente.telefono)
+  const deudaStr = `$${cliente.deuda_total.toFixed(2)}`
+  const mensaje = encodeURIComponent(
+    `Hola ${cliente.nombre}, te recordamos que tenés un saldo pendiente de ${deudaStr}. ¡Gracias!`
+  )
+  const url = `https://wa.me/${numero}?text=${mensaje}`
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={`Enviar WhatsApp a ${cliente.nombre}`}
+      onClick={e => e.stopPropagation()}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 30, borderRadius: 8,
+        background: 'rgba(37,211,102,0.1)',
+        border: '1px solid rgba(37,211,102,0.25)',
+        color: '#25d366',
+        textDecoration: 'none', flexShrink: 0,
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={e => e.currentTarget.style.background='rgba(37,211,102,0.2)'}
+      onMouseLeave={e => e.currentTarget.style.background='rgba(37,211,102,0.1)'}
+    >
+      <MessageCircle size={14} />
+    </a>
+  )
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 export default function Clientes() {
   const [clientes, setClientes] = useState([])
   const [filtrados, setFiltrados] = useState([])
@@ -162,7 +208,13 @@ export default function Clientes() {
                 {/* Info */}
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontWeight:700,fontSize:15,marginBottom:1}}>{c.nombre}</p>
-                  {c.telefono && <p style={{fontSize:12,color:'var(--text-3)'}}>{c.telefono}</p>}
+                  {c.telefono && (
+                    <div style={{display:'flex',alignItems:'center',gap:6}}>
+                      <p style={{fontSize:12,color:'var(--text-3)'}}>{c.telefono}</p>
+                      {/* WhatsApp solo si tiene teléfono y tiene deuda */}
+                      {c.deuda_total > 0 && <BtnWhatsApp cliente={c} />}
+                    </div>
+                  )}
                 </div>
 
                 {/* Deuda */}

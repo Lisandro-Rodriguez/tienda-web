@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { productoService, stockService } from '../services/api'
 import { useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera, SlidersHorizontal } from 'lucide-react'
+import { Plus, Search, Edit2, Trash2, AlertTriangle, X, Camera, SlidersHorizontal, Minus } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import EscanerCamara from '../components/ui/EscanerCamara'
 
@@ -115,8 +115,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
           <button className="modal-close" onClick={onClose}><X size={15} /></button>
         </div>
         <form onSubmit={handleSubmit} style={{padding:'1.25rem 1.5rem',display:'flex',flexDirection:'column',gap:'1rem'}}>
-
-          {/* Código */}
           <div>
             <label className="label">Código de barras</label>
             <div style={{display:'flex',gap:8}}>
@@ -153,7 +151,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             />
           )}
 
-          {/* Nombre */}
           <div>
             <label className="label">Nombre del producto</label>
             <input className="input" value={form.nombre}
@@ -161,7 +158,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
               placeholder="Ej: Coca Cola 500ml" required />
           </div>
 
-          {/* Tipo y Marca */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
             <div>
               <label className="label">Categoría</label>
@@ -177,7 +173,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             </div>
           </div>
 
-          {/* Costo / Margen / Stock */}
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12}}>
             <div>
               <label className="label">Costo ($)</label>
@@ -200,7 +195,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             </div>
           </div>
 
-          {/* Precio calculado */}
           <div style={{background:'#f0f7ff',borderRadius:10,padding:'10px 14px',
             display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span style={{fontSize:13,color:'var(--text-2)'}}>Precio de venta</span>
@@ -209,7 +203,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
             </span>
           </div>
 
-          {/* Stock mínimo */}
           <div>
             <label className="label">Stock mínimo de alerta</label>
             <input className="input" type="number" min="0"
@@ -218,7 +211,6 @@ function ModalProducto({ producto, onClose, onSave, tiposExistentes, marcasExist
               placeholder="Vacío = usar configuración global" />
           </div>
 
-          {/* Botones */}
           <div style={{display:'flex',gap:10,paddingTop:4}}>
             <button type="button" onClick={onClose} className="btn btn-ghost" style={{flex:1}}>Cancelar</button>
             <button type="submit" disabled={loading} className="btn btn-primary" style={{flex:1}}>
@@ -273,7 +265,6 @@ function PanelUmbrales({ tiposExistentes, marcasExistentes, onClose }) {
           <button className="modal-close" onClick={onClose}><X size={15} /></button>
         </div>
         <div style={{padding:'1.25rem 1.5rem',display:'flex',flexDirection:'column',gap:'1rem'}}>
-
           {umbrales.length > 0 && (
             <div>
               <p className="label" style={{marginBottom:8}}>Umbrales activos</p>
@@ -299,7 +290,6 @@ function PanelUmbrales({ tiposExistentes, marcasExistentes, onClose }) {
               </div>
             </div>
           )}
-
           <div style={{borderTop:'1px solid var(--border)',paddingTop:'1rem'}}>
             <p className="label" style={{marginBottom:12}}>Agregar umbral</p>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
@@ -318,7 +308,6 @@ function PanelUmbrales({ tiposExistentes, marcasExistentes, onClose }) {
                   onChange={e => setNuevo(u => ({...u, umbral: parseInt(e.target.value) || 0}))} />
               </div>
             </div>
-
             {nuevo.tipo === 'tipo' && (
               <div style={{marginBottom:10}}>
                 <label className="label">Categoría</label>
@@ -335,12 +324,10 @@ function PanelUmbrales({ tiposExistentes, marcasExistentes, onClose }) {
                   opciones={marcasExistentes} placeholder="Ej: Coca-Cola" />
               </div>
             )}
-
             <div style={{background:'#f0f7ff',borderRadius:10,padding:'8px 12px',fontSize:12,
               color:'var(--accent)',marginBottom:12}}>
               Prioridad: Producto individual → Categoría → Marca → Global
             </div>
-
             <button onClick={guardar} className="btn btn-primary" style={{width:'100%',justifyContent:'center'}}>
               Guardar umbral
             </button>
@@ -363,6 +350,7 @@ export default function Inventario() {
   const [marcasExistentes, setMarcasExistentes] = useState([])
   const [umbrales, setUmbrales] = useState([])
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
+  const [ajustando, setAjustando] = useState({}) // { [id]: true } mientras se guarda
   const [searchParams] = useSearchParams()
   const { usuario } = useAuthStore()
   const isAdmin = usuario?.rol === 'ADMIN'
@@ -400,8 +388,7 @@ export default function Inventario() {
 
   useEffect(() => {
     if (searchParams.get('bajo_stock')) setBajoStock(true)
-    cargarUmbrales()
-    cargar()
+    cargarUmbrales(); cargar()
   }, [])
 
   useEffect(() => { cargar() }, [busqueda, bajoStock])
@@ -413,10 +400,21 @@ export default function Inventario() {
     catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
+  // Ajuste rápido de stock +/- desde la card móvil
+  const ajustarStock = async (producto, delta) => {
+    const nuevoStock = Math.max(0, producto.stock + delta)
+    setAjustando(a => ({ ...a, [producto.id]: true }))
+    try {
+      await productoService.actualizar(producto.id, { stock: nuevoStock })
+      setProductos(ps => ps.map(p => p.id === producto.id ? { ...p, stock: nuevoStock } : p))
+    } catch { toast.error('Error al actualizar stock') }
+    finally { setAjustando(a => ({ ...a, [producto.id]: false })) }
+  }
+
   return (
     <div className="page-wrap">
 
-      {/* Header */}
+      {/* Header — en móvil ocultamos los botones (están el FAB y el stock) */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Inventario</h1>
@@ -429,11 +427,10 @@ export default function Inventario() {
               <span className="hidden md:inline">Stock</span>
             </button>
           )}
+          {/* Botón nuevo en desktop */}
           {isAdmin && (
-            <button onClick={() => setModal('nuevo')} className="btn btn-primary">
-              <Plus size={16} />
-              <span className="hidden sm:inline">Nuevo producto</span>
-              <span className="sm:hidden">Nuevo</span>
+            <button onClick={() => setModal('nuevo')} className="btn btn-primary hidden md:flex">
+              <Plus size={16} /> Nuevo producto
             </button>
           )}
         </div>
@@ -473,27 +470,18 @@ export default function Inventario() {
         <table className="tabla">
           <thead>
             <tr>
-              <th>Código</th>
-              <th>Nombre</th>
-              <th>Categoría</th>
-              <th>Marca</th>
+              <th>Código</th><th>Nombre</th><th>Categoría</th><th>Marca</th>
               {isAdmin && <th>Costo</th>}
-              <th>Precio venta</th>
-              <th>Stock</th>
-              <th></th>
+              <th>Precio venta</th><th>Stock</th><th></th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem',color:'var(--text-3)'}}>
-                <span className="loader" />
-              </td></tr>
+              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem',color:'var(--text-3)'}}><span className="loader" /></td></tr>
             ) : productos.length === 0 ? (
-              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem',color:'var(--text-3)'}}>
-                No hay productos
-              </td></tr>
+              <tr><td colSpan={8} style={{textAlign:'center',padding:'3rem',color:'var(--text-3)'}}>No hay productos</td></tr>
             ) : productos.map(p => (
-              <tr key={p.id} className={esBajoStock(p) ? '' : ''}>
+              <tr key={p.id}>
                 <td style={{fontFamily:'monospace',fontSize:11,color:'var(--text-3)'}}>{p.codigo_barras}</td>
                 <td style={{fontWeight:600}}>{p.nombre}</td>
                 <td style={{color:'var(--text-2)',fontSize:13}}>{p.tipo}</td>
@@ -501,13 +489,8 @@ export default function Inventario() {
                 {isAdmin && <td style={{color:'var(--text-2)'}}>${p.precio_costo.toFixed(2)}</td>}
                 <td style={{fontWeight:600,color:'var(--green)'}}>${p.precio_venta.toFixed(2)}</td>
                 <td>
-                  <span style={{
-                    fontWeight:700,
-                    color: esBajoStock(p) ? 'var(--red)' : 'var(--text)',
-                    display:'flex',alignItems:'center',gap:4
-                  }}>
-                    {p.stock}
-                    {esBajoStock(p) && <AlertTriangle size={13} style={{color:'var(--red)'}} />}
+                  <span style={{fontWeight:700,color: esBajoStock(p) ? 'var(--red)' : 'var(--text)',display:'flex',alignItems:'center',gap:4}}>
+                    {p.stock}{esBajoStock(p) && <AlertTriangle size={13} style={{color:'var(--red)'}} />}
                   </span>
                 </td>
                 <td>
@@ -541,10 +524,10 @@ export default function Inventario() {
         ) : productos.length === 0 ? (
           <div className="empty-state">
             <p>Sin productos</p>
-            <p>Agregá el primero con el botón de arriba</p>
+            <p>Usá el botón + para agregar</p>
           </div>
         ) : productos.map(p => (
-          <div key={p.id} className="card" style={{padding:'1rem'}}>
+          <div key={p.id} className="card" style={{padding:'1rem',marginBottom:8}}>
             <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontWeight:700,fontSize:15,marginBottom:2}}>{p.nombre}</p>
@@ -554,24 +537,85 @@ export default function Inventario() {
               <div style={{textAlign:'right',flexShrink:0}}>
                 <p style={{fontWeight:700,color:'var(--green)',fontSize:16}}>${p.precio_venta.toFixed(2)}</p>
                 {isAdmin && <p style={{fontSize:11,color:'var(--text-3)'}}>costo: ${p.precio_costo.toFixed(2)}</p>}
-                <p style={{fontSize:12,fontWeight:700,color: esBajoStock(p) ? 'var(--red)' : 'var(--text-2)',marginTop:2}}>
-                  Stock: {p.stock} {esBajoStock(p) && '⚠'}
-                </p>
               </div>
             </div>
-            {isAdmin && (
-              <div style={{display:'flex',gap:8,marginTop:12,paddingTop:12,borderTop:'1px solid var(--border)'}}>
-                <button onClick={() => setModal(p)} className="btn btn-ghost" style={{flex:1,justifyContent:'center'}}>
-                  <Edit2 size={14} /> Editar
-                </button>
-                <button onClick={() => eliminar(p.id)} className="btn btn-danger" style={{flex:1,justifyContent:'center'}}>
-                  <Trash2 size={14} /> Eliminar
-                </button>
+
+            {/* Fila inferior: stock express + editar */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+              marginTop:12,paddingTop:10,borderTop:'1px solid var(--border)'}}>
+
+              {/* Stock express */}
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                {isAdmin && (
+                  <button
+                    onClick={() => ajustarStock(p, -1)}
+                    disabled={p.stock <= 0 || ajustando[p.id]}
+                    style={{width:30,height:30,borderRadius:8,border:'1px solid var(--border)',
+                      background:'var(--surface)',cursor: p.stock <= 0 ? 'not-allowed' : 'pointer',
+                      display:'flex',alignItems:'center',justifyContent:'center',
+                      color:'var(--text-2)',opacity: p.stock <= 0 ? 0.4 : 1}}>
+                    <Minus size={13} />
+                  </button>
+                )}
+                <span style={{
+                  fontWeight:700, fontSize:15, minWidth:32, textAlign:'center',
+                  color: esBajoStock(p) ? 'var(--red)' : 'var(--text)',
+                  display:'flex', alignItems:'center', gap:4,
+                }}>
+                  {ajustando[p.id] ? '...' : p.stock}
+                  {esBajoStock(p) && <AlertTriangle size={12} style={{color:'var(--red)'}} />}
+                </span>
+                {isAdmin && (
+                  <button
+                    onClick={() => ajustarStock(p, 1)}
+                    disabled={ajustando[p.id]}
+                    style={{width:30,height:30,borderRadius:8,border:'1px solid var(--border)',
+                      background:'var(--surface)',cursor:'pointer',
+                      display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-2)'}}>
+                    <Plus size={13} />
+                  </button>
+                )}
+                <span style={{fontSize:11,color:'var(--text-3)'}}>uds.</span>
               </div>
-            )}
+
+              {/* Acciones */}
+              {isAdmin && (
+                <div style={{display:'flex',gap:6}}>
+                  <button onClick={() => setModal(p)} className="btn btn-ghost"
+                    style={{padding:'6px 12px',fontSize:12,gap:4}}>
+                    <Edit2 size={13} /> Editar
+                  </button>
+                  <button onClick={() => eliminar(p.id)} className="btn btn-danger"
+                    style={{padding:'6px 10px',fontSize:12}}>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
+
+      {/* FAB móvil — botón flotante para nuevo producto */}
+      {isAdmin && (
+        <button
+          className="md:hidden"
+          onClick={() => setModal('nuevo')}
+          style={{
+            position: 'fixed', bottom: 80, right: 20, zIndex: 35,
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'var(--navy)', color: '#fff',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 20px rgba(30,58,95,0.4)',
+            transition: 'transform 0.15s, box-shadow 0.15s',
+          }}
+          onTouchStart={e => e.currentTarget.style.transform = 'scale(0.93)'}
+          onTouchEnd={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <Plus size={26} />
+        </button>
+      )}
 
       {/* Modales */}
       {modal && (
