@@ -1,9 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
-from app.api import auth, negocios, productos, ventas, clientes, catalogo, stock
-
-
+from app.api import auth, negocios, productos, ventas, clientes, catalogo, stock, reportes
 
 Base.metadata.create_all(bind=engine)
 
@@ -28,6 +26,7 @@ app.include_router(ventas.router)
 app.include_router(clientes.router)
 app.include_router(catalogo.router)
 app.include_router(stock.router)
+app.include_router(reportes.router)
 
 @app.get("/")
 def root():

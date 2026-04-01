@@ -13,6 +13,7 @@ import Clientes from './pages/Clientes'
 import Historial from './pages/Historial'
 import Configuracion from './pages/Configuracion'
 import Ayuda from './pages/Ayuda'
+import Reportes from './pages/Reportes'
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { token, usuario } = useAuthStore()
@@ -33,29 +34,21 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <Routes>
-        {/* Rutas públicas */}
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
         <Route path="/recuperar-password" element={<RecuperarPassword />} />
         <Route path="/nueva-password" element={<NuevaPassword />} />
-        <Route path="/ayuda" element={<Ayuda />} />
 
-        {/* Rutas protegidas */}
-        <Route path="/" element={
-          <ProtectedRoute><Layout /></ProtectedRoute>
-        }>
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<IndexRoute />} />
-          <Route path="dashboard" element={
-            <ProtectedRoute adminOnly><Dashboard /></ProtectedRoute>
-          } />
+          <Route path="dashboard" element={<ProtectedRoute adminOnly><Dashboard /></ProtectedRoute>} />
           <Route path="inventario" element={<Inventario />} />
           <Route path="ventas" element={<Ventas />} />
           <Route path="clientes" element={<Clientes />} />
           <Route path="historial" element={<Historial />} />
-          <Route path="configuracion" element={
-            <ProtectedRoute adminOnly><Configuracion /></ProtectedRoute>
-          } />
-          
+          <Route path="reportes" element={<ProtectedRoute adminOnly><Reportes /></ProtectedRoute>} />
+          <Route path="configuracion" element={<ProtectedRoute adminOnly><Configuracion /></ProtectedRoute>} />
+          <Route path="ayuda" element={<Ayuda />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

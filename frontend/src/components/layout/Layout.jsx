@@ -3,7 +3,7 @@ import { useAuthStore } from '../../store/authStore'
 import { useState } from 'react'
 import {
   LayoutDashboard, Package, ShoppingCart, Users,
-  ClipboardList, Settings, LogOut, Store, Menu, X, HelpCircle
+  ClipboardList, Settings, LogOut, Store, Menu, X, HelpCircle, BarChart2
 } from 'lucide-react'
 import clsx from 'clsx'
 
@@ -13,11 +13,11 @@ const NAV_ITEMS = [
   { to: '/inventario',    icon: Package,         label: 'Inventario', always: true },
   { to: '/clientes',      icon: Users,           label: 'Fiado',      always: true },
   { to: '/historial',     icon: ClipboardList,   label: 'Historial',  always: true },
+  { to: '/reportes',      icon: BarChart2,        label: 'Reportes',   adminOnly: true },
   { to: '/configuracion', icon: Settings,        label: 'Config',     adminOnly: true },
   { to: '/ayuda',         icon: HelpCircle,      label: 'Ayuda',      always: true },
 ]
 
-// Bottom nav muestra máx 5 items — priorizamos los más usados, Ayuda va en el menú hamburguesa
 const BOTTOM_NAV_ITEMS = [
   { to: '/ventas',     icon: ShoppingCart,  label: 'Caja'      },
   { to: '/inventario', icon: Package,       label: 'Inventario' },
@@ -128,7 +128,6 @@ export default function Layout() {
         {/* BOTTOM NAV MÓVIL */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40">
           <div className="flex">
-            {/* Admin ve Dashboard en lugar de Ayuda en el bottom nav */}
             {isAdmin && (
               <NavLink to="/dashboard" end
                 className={({ isActive }) => clsx(
@@ -140,7 +139,6 @@ export default function Layout() {
               </NavLink>
             )}
             {BOTTOM_NAV_ITEMS.filter(i =>
-              // Si es admin, omitir Ayuda del bottom nav (ya tiene Dashboard que ocupa el 5to slot)
               isAdmin ? i.to !== '/ayuda' : true
             ).map(item => (
               <NavLink key={item.to} to={item.to}

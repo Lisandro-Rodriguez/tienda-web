@@ -90,3 +90,10 @@ export const stockService = {
   guardarUmbral: (data) => api.post('/stock/umbrales', data),
   eliminarUmbral: (id) => api.delete(`/stock/umbrales/${id}`),
 }
+
+// ─── Reportes ─────────────────────────────────────────────────────────────────
+
+export const reporteService = {
+  productos: (params) => api.get('/reportes/productos', { params }),
+  filtros:   ()       => api.get('/reportes/filtros'),
+}
