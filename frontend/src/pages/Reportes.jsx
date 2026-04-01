@@ -97,9 +97,18 @@ export default function Reportes() {
 
   const [datos, setDatos]       = useState([])
   const [loading, setLoading]   = useState(false)
+  // Calcular fechas por defecto (hoy y hace 7 días)
+  const hoy = new Date();
+  const haceUnaSemana = new Date();
+  haceUnaSemana.setDate(hoy.getDate() - 7);
+  
+  // Formatear a YYYY-MM-DD para el input type="date"
+  const hoyStr = hoy.toISOString().split('T')[0];
+  const haceUnaSemanaStr = haceUnaSemana.toISOString().split('T')[0];
+
   const [filtros, setFiltros]   = useState({
-    desde:  '',
-    hasta:  '',
+    desde:  haceUnaSemanaStr,
+    hasta:  hoyStr,
     tipo:   '',
     marca:  '',
     orden:  'cantidad_desc',
@@ -155,14 +164,16 @@ export default function Reportes() {
             disabled={datos.length === 0}
             style={{display:'flex',alignItems:'center',gap:6,padding:'0.55rem 1rem',
               background:'#fff',border:'1px solid var(--border)',borderRadius:8,
-              fontSize:13,fontWeight:600,cursor:'pointer',color:'var(--text-2)'}}>
+              fontSize:13,fontWeight:600,cursor: datos.length === 0 ? 'not-allowed' : 'pointer',
+              color:'var(--text-2)', opacity: datos.length === 0 ? 0.5 : 1}}>
             <Download size={14} /> Excel
           </button>
           <button onClick={() => exportarPDF(datos, isAdmin, negocioNombre, filtros)}
             disabled={datos.length === 0}
             style={{display:'flex',alignItems:'center',gap:6,padding:'0.55rem 1rem',
               background:'#fff',border:'1px solid var(--border)',borderRadius:8,
-              fontSize:13,fontWeight:600,cursor:'pointer',color:'var(--text-2)'}}>
+              fontSize:13,fontWeight:600,cursor: datos.length === 0 ? 'not-allowed' : 'pointer',
+              color:'var(--text-2)', opacity: datos.length === 0 ? 0.5 : 1}}>
             <Download size={14} /> PDF
           </button>
         </div>
@@ -289,7 +300,14 @@ export default function Reportes() {
                 <td style={{textAlign:'right',fontWeight:700,fontSize:14}}>{r.cantidad_vendida.toLocaleString('es-AR')}</td>
                 <td style={{textAlign:'right',fontWeight:600,color:'var(--accent)'}}>{fmt(r.ingresos)}</td>
                 {isAdmin && (
-                  <td style={{textAlign:'right',fontWeight:600,color:'var(--green)'}}>{fmt(r.ganancia)}</td>
+                  <td style={{
+                    textAlign: 'right',
+                    fontWeight: 800, /* 1. Hacemos el texto más gordito/negrita para resaltarlo */
+                    backgroundColor: '#f8fafc', /* 2. Le ponemos un fondo gris ultra clarito a la celda */
+                    color: r.ganancia < 0 ? '#ef4444' : 'var(--green)' /* 3. Magia: Si es menor a 0 es rojo, si no, verde */
+                  }}>
+                    {fmt(r.ganancia)}
+                  </td>
                 )}
               </tr>
             ))}
@@ -316,7 +334,15 @@ export default function Reportes() {
               <div style={{textAlign:'right',flexShrink:0}}>
                 <p style={{fontWeight:700,fontSize:16,color:'var(--accent)'}}>{r.cantidad_vendida} uds.</p>
                 <p style={{fontSize:12,color:'var(--text-2)'}}>{fmt(r.ingresos)}</p>
-                {isAdmin && <p style={{fontSize:12,color:'var(--green)',fontWeight:600}}>{fmt(r.ganancia)}</p>}
+                {isAdmin && (
+                  <p style={{
+                    fontSize:12,
+                    fontWeight:700,
+                    color: r.ganancia < 0 ? '#ef4444' : 'var(--green)'
+                  }}>
+                    {fmt(r.ganancia)}
+                  </p>
+                )}
               </div>
             </div>
           </div>

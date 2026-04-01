@@ -96,18 +96,23 @@ def filtros_disponibles(
     db: Session = Depends(get_db)
 ):
     """Tipos y marcas disponibles para poblar los selects del frontend."""
+    # Buscar tipos (filtrando nulos o vacíos)
     tipos = db.query(Producto.tipo).filter(
         Producto.negocio_id == usuario.negocio_id,
-        Producto.activo == True,
-        Producto.tipo.notin_(["-", "", None]),
+        Producto.tipo.isnot(None),
+        Producto.tipo != "",
+        Producto.tipo != "-"
     ).distinct().all()
 
+    # Buscar marcas (filtrando nulos o vacíos)
     marcas = db.query(Producto.marca).filter(
         Producto.negocio_id == usuario.negocio_id,
-        Producto.activo == True,
-        Producto.marca.notin_(["-", "", None]),
+        Producto.marca.isnot(None),
+        Producto.marca != "",
+        Producto.marca != "-"
     ).distinct().all()
 
+    # Formatear la respuesta
     return {
         "tipos":  sorted([t[0] for t in tipos if t[0]]),
         "marcas": sorted([m[0] for m in marcas if m[0]]),
