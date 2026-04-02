@@ -14,6 +14,7 @@ import Historial from './pages/Historial'
 import Configuracion from './pages/Configuracion'
 import Ayuda from './pages/Ayuda'
 import Reportes from './pages/Reportes'
+import AyudaPublica from './pages/AyudaPublica'
 
 function ProtectedRoute({ children, adminOnly = false }) {
   const { token, usuario } = useAuthStore()
@@ -38,6 +39,7 @@ export default function App() {
         <Route path="/registro" element={<Registro />} />
         <Route path="/recuperar-password" element={<RecuperarPassword />} />
         <Route path="/nueva-password" element={<NuevaPassword />} />
+        <Route path="/ayuda-publica" element={<AyudaPublica />} />
 
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<IndexRoute />} />

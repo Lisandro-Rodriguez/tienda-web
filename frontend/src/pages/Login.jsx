@@ -184,8 +184,8 @@ export default function Login() {
                 ¿Olvidaste tu contraseña?
               </Link>
               {/* Lo que tenías antes seguro era un <span>, un <button> o un <a> vacío */}
-              <Link to="/ayuda" className="text-gray-400 hover:text-white transition-colors flex items-center gap-1">
-                Ayuda
+              <Link to="/ayuda-publica" className="login-link-small">
+                <HelpCircle size={12} /> Ayuda
               </Link>
             </div>
 

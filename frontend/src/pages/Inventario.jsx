@@ -350,7 +350,8 @@ export default function Inventario() {
   const [marcasExistentes, setMarcasExistentes] = useState([])
   const [umbrales, setUmbrales] = useState([])
   const [mostrarEscaner, setMostrarEscaner] = useState(false)
-  const [ajustando, setAjustando] = useState({}) // { [id]: true } mientras se guarda
+  const [stockPendiente, setStockPendiente] = useState({}) // { [id]: nuevoCantidad } antes de confirmar
+  const [guardando, setGuardando] = useState({})           // { [id]: true } mientras guarda en backend
   const [searchParams] = useSearchParams()
   const { usuario } = useAuthStore()
   const isAdmin = usuario?.rol === 'ADMIN'
@@ -400,15 +401,35 @@ export default function Inventario() {
     catch (err) { toast.error(err.response?.data?.detail || 'Error') }
   }
 
-  // Ajuste rápido de stock +/- desde la card móvil
-  const ajustarStock = async (producto, delta) => {
-    const nuevoStock = Math.max(0, producto.stock + delta)
-    setAjustando(a => ({ ...a, [producto.id]: true }))
+  // Ajuste local: solo mueve el número en pantalla, NO llama al backend todavía
+  const cambiarStockLocal = (producto, delta) => {
+    setStockPendiente(prev => {
+      const base = prev[producto.id] !== undefined ? prev[producto.id] : producto.stock
+      const nuevo = Math.max(0, base + delta)
+      return { ...prev, [producto.id]: nuevo }
+    })
+  }
+
+  // Confirmar: guarda en backend y limpia el estado pendiente
+  const confirmarStock = async (producto) => {
+    const nuevoStock = stockPendiente[producto.id]
+    if (nuevoStock === undefined || nuevoStock === producto.stock) {
+      setStockPendiente(p => { const n = {...p}; delete n[producto.id]; return n })
+      return
+    }
+    setGuardando(g => ({ ...g, [producto.id]: true }))
     try {
       await productoService.actualizar(producto.id, { stock: nuevoStock })
       setProductos(ps => ps.map(p => p.id === producto.id ? { ...p, stock: nuevoStock } : p))
+      setStockPendiente(p => { const n = {...p}; delete n[producto.id]; return n })
+      toast.success('Stock actualizado')
     } catch { toast.error('Error al actualizar stock') }
-    finally { setAjustando(a => ({ ...a, [producto.id]: false })) }
+    finally { setGuardando(g => ({ ...g, [producto.id]: false })) }
+  }
+
+  // Cancelar: descarta el pendiente
+  const cancelarStock = (id) => {
+    setStockPendiente(p => { const n = {...p}; delete n[id]; return n })
   }
 
   return (
@@ -544,53 +565,98 @@ export default function Inventario() {
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
               marginTop:12,paddingTop:10,borderTop:'1px solid var(--border)'}}>
 
-              {/* Stock express */}
-              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                {isAdmin && (
-                  <button
-                    onClick={() => ajustarStock(p, -1)}
-                    disabled={p.stock <= 0 || ajustando[p.id]}
-                    style={{width:30,height:30,borderRadius:8,border:'1px solid var(--border)',
-                      background:'var(--surface)',cursor: p.stock <= 0 ? 'not-allowed' : 'pointer',
-                      display:'flex',alignItems:'center',justifyContent:'center',
-                      color:'var(--text-2)',opacity: p.stock <= 0 ? 0.4 : 1}}>
-                    <Minus size={13} />
-                  </button>
-                )}
-                <span style={{
-                  fontWeight:700, fontSize:15, minWidth:32, textAlign:'center',
-                  color: esBajoStock(p) ? 'var(--red)' : 'var(--text)',
-                  display:'flex', alignItems:'center', gap:4,
-                }}>
-                  {ajustando[p.id] ? '...' : p.stock}
-                  {esBajoStock(p) && <AlertTriangle size={12} style={{color:'var(--red)'}} />}
-                </span>
-                {isAdmin && (
-                  <button
-                    onClick={() => ajustarStock(p, 1)}
-                    disabled={ajustando[p.id]}
-                    style={{width:30,height:30,borderRadius:8,border:'1px solid var(--border)',
-                      background:'var(--surface)',cursor:'pointer',
-                      display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-2)'}}>
-                    <Plus size={13} />
-                  </button>
-                )}
-                <span style={{fontSize:11,color:'var(--text-3)'}}>uds.</span>
-              </div>
+              {/* Stock con confirmación explícita */}
+              {isAdmin && (() => {
+                const pendiente = stockPendiente[p.id]
+                const hayPendiente = pendiente !== undefined && pendiente !== p.stock
+                const stockMostrado = pendiente !== undefined ? pendiente : p.stock
+                const esBajo = stockMostrado <= getUmbral(p)
 
-              {/* Acciones */}
-              {isAdmin && (
-                <div style={{display:'flex',gap:6}}>
-                  <button onClick={() => setModal(p)} className="btn btn-ghost"
-                    style={{padding:'6px 12px',fontSize:12,gap:4}}>
-                    <Edit2 size={13} /> Editar
-                  </button>
-                  <button onClick={() => eliminar(p.id)} className="btn btn-danger"
-                    style={{padding:'6px 10px',fontSize:12}}>
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              )}
+                return (
+                  <div style={{flex:1}}>
+                    {/* Stepper */}
+                    <div style={{display:'flex',alignItems:'center',gap:8,marginBottom: hayPendiente ? 8 : 0}}>
+                      <button
+                        onClick={() => cambiarStockLocal(p, -1)}
+                        disabled={stockMostrado <= 0 || guardando[p.id]}
+                        style={{width:34,height:34,borderRadius:8,
+                          border:`1px solid ${hayPendiente ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
+                          background: hayPendiente ? 'rgba(245,158,11,0.06)' : 'var(--surface)',
+                          cursor: stockMostrado <= 0 ? 'not-allowed' : 'pointer',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          color:'var(--text-2)', opacity: stockMostrado <= 0 ? 0.35 : 1,
+                          flexShrink:0}}>
+                        <Minus size={14} />
+                      </button>
+
+                      <div style={{textAlign:'center',minWidth:48}}>
+                        <span style={{
+                          fontWeight:800, fontSize:17,
+                          color: hayPendiente ? '#f59e0b' : esBajo ? 'var(--red)' : 'var(--text)',
+                          display:'flex', alignItems:'center', justifyContent:'center', gap:4,
+                        }}>
+                          {guardando[p.id] ? '...' : stockMostrado}
+                          {!hayPendiente && esBajo && <AlertTriangle size={12} style={{color:'var(--red)'}} />}
+                          {hayPendiente && (
+                            <span style={{fontSize:10,color:'#f59e0b',fontWeight:500}}>
+                              {stockMostrado > p.stock ? `+${stockMostrado - p.stock}` : `${stockMostrado - p.stock}`}
+                            </span>
+                          )}
+                        </span>
+                        <span style={{fontSize:10,color:'var(--text-3)'}}>uds.</span>
+                      </div>
+
+                      <button
+                        onClick={() => cambiarStockLocal(p, 1)}
+                        disabled={guardando[p.id]}
+                        style={{width:34,height:34,borderRadius:8,
+                          border:`1px solid ${hayPendiente ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
+                          background: hayPendiente ? 'rgba(245,158,11,0.06)' : 'var(--surface)',
+                          cursor:'pointer',
+                          display:'flex',alignItems:'center',justifyContent:'center',
+                          color:'var(--text-2)', flexShrink:0}}>
+                        <Plus size={14} />
+                      </button>
+
+                      {/* Botones editar/eliminar solo si no hay cambio pendiente */}
+                      {!hayPendiente && (
+                        <div style={{display:'flex',gap:6,marginLeft:'auto'}}>
+                          <button onClick={() => setModal(p)} className="btn btn-ghost"
+                            style={{padding:'6px 12px',fontSize:12,gap:4}}>
+                            <Edit2 size={13} /> Editar
+                          </button>
+                          <button onClick={() => eliminar(p.id)} className="btn btn-danger"
+                            style={{padding:'6px 10px',fontSize:12}}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botones confirmar/cancelar — solo si hay cambio pendiente */}
+                    {hayPendiente && (
+                      <div style={{display:'flex',gap:6}}>
+                        <button
+                          onClick={() => cancelarStock(p.id)}
+                          style={{flex:1,padding:'7px',borderRadius:8,fontSize:12,fontWeight:600,
+                            background:'var(--surface)',border:'1px solid var(--border)',
+                            color:'var(--text-2)',cursor:'pointer',fontFamily:'DM Sans,sans-serif'}}>
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={() => confirmarStock(p)}
+                          disabled={guardando[p.id]}
+                          style={{flex:2,padding:'7px',borderRadius:8,fontSize:12,fontWeight:700,
+                            background:'var(--navy)',border:'none',
+                            color:'#fff',cursor:'pointer',fontFamily:'DM Sans,sans-serif',
+                            opacity: guardando[p.id] ? 0.6 : 1}}>
+                          {guardando[p.id] ? 'Guardando...' : `Guardar ${stockMostrado} uds.`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
           </div>
         ))}
